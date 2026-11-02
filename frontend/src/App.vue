@@ -25,11 +25,11 @@ function exportList(){const text=shopping.value.map(i=>`${i.checked?'☑':'☐'}
 </script>
 
 <template>
-<div class="layout">
+<div class="layout" :class="{'has-selection':selected.length}">
   <aside class="sidebar">
     <a class="brand" href="#" @click.prevent="page='recipes'"><span class="brand-symbol"><Leaf :size="25"/></span><span>食拾<small>SHI SHI</small></span></a>
     <p class="sidebar-label">我的厨房</p>
-    <nav><button v-for="[id,label,icon] in nav" :key="id" :class="{active:page===id}" @click="page=id;error='' "><component :is="icon" :size="19"/>{{label}}<span v-if="id==='recipes'" class="nav-count">{{recipes.length}}</span><span v-if="id==='shopping'&&shopping.length" class="nav-dot"></span></button></nav>
+    <nav aria-label="厨房导航"><button v-for="[id,label,icon] in nav" :key="id" :class="{active:page===id}" :aria-current="page===id?'page':undefined" @click="page=id;error='' "><component :is="icon" :size="19"/>{{label}}<span v-if="id==='recipes'" class="nav-count">{{recipes.length}}</span><span v-if="id==='shopping'&&shopping.length" class="nav-dot"></span></button></nav>
     <div class="sidebar-note"><span>一餐一饭，好好生活。</span><p>把散落的好味道，<br>收进自己的小厨房。</p><Leaf :size="40" stroke-width="1"/></div>
     <div class="profile"><span class="avatar">拾</span><div>我的本地厨房<small><i></i> 数据保存在本机</small></div><span class="version">v0.1</span></div>
   </aside>

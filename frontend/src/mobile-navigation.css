@@ -1,0 +1,59 @@
+/* Keep navigation within thumb reach on phones and small tablets. */
+@media (max-width: 768px) {
+  .sidebar {
+    position: static;
+    width: 100%;
+    padding: 16px 20px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar .brand { padding: 0; font-size: 25px; }
+  .sidebar .brand-symbol { width: 34px; height: 38px; }
+  .sidebar .brand small { font-size: 7px; margin-top: 2px; }
+  .sidebar-label, .sidebar-note, .profile { display: none; }
+
+  .sidebar nav {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 15;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    margin: 0;
+    padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    border-top: 1px solid var(--border);
+    background: #fff;
+    box-shadow: 0 -4px 20px #293d3308;
+  }
+
+  .sidebar nav button {
+    position: relative;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    min-height: 52px;
+    padding: 6px 4px;
+    border-radius: 10px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .sidebar nav button svg { width: 21px; height: 21px; }
+  .sidebar .nav-count, .sidebar .nav-dot { display: none; }
+  main { margin-left: 0; }
+  .content { padding-bottom: calc(108px + env(safe-area-inset-bottom)); }
+  .has-selection .content { padding-bottom: calc(180px + env(safe-area-inset-bottom)); }
+
+  .selection-bar {
+    left: 50%;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    width: max-content;
+    max-width: calc(100% - 24px);
+    gap: 15px;
+    padding: 10px 12px;
+  }
+
+  .selection-bar > span, .selection-bar .primary { font-size: 10px; }
+  .overlay { padding-bottom: max(15px, env(safe-area-inset-bottom)); }
+}
