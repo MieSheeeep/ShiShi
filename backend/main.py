@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, text
 from backend.core import canonical_url, merge_ingredients, normalize
 from backend.seed import examples
 from backend.crawler import fetch_recipe
+from backend.source_urls import import_url
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'data'
@@ -35,10 +36,11 @@ class Recipe(BaseModel):
     emoji: str = '🍲'
     tags: list[str] = []
     notes: str = ''
+    source_text: str = Field(default='',max_length=50000)
     ingredients: list[Ingredient] = Field(min_length=1,max_length=200)
     steps: list[str] = Field(min_length=1,max_length=200)
 class Link(BaseModel):
-    url: str
+    url: str = Field(min_length=1,max_length=20000)
 class Match(BaseModel):
     ingredients: list[str] = []
     staples: list[str] = []
@@ -73,7 +75,7 @@ def save(recipe:Recipe):
         with engine.begin() as db:
             result=db.execute(text('INSERT INTO recipes(source,body) VALUES(:source,:body)'),{'source':body['source'] or None,'body':json.dumps(body,ensure_ascii=False)})
             return dict(body,id=result.lastrowid)
-    except IntegrityError: raise HTTPException(409,'这个豆果链接已经收藏过了')
+    except IntegrityError: raise HTTPException(409,'这个来源链接已经收藏过了')
 
 @app.put('/api/recipes/{rid}')
 def update(rid:int,recipe:Recipe):
@@ -84,7 +86,7 @@ def update(rid:int,recipe:Recipe):
             result=db.execute(text('UPDATE recipes SET source=:source,body=:body WHERE id=:id'),{'id':rid,'source':body['source'] or None,'body':json.dumps(body,ensure_ascii=False)})
             if not result.rowcount: raise HTTPException(404,'食谱不存在')
         return dict(body,id=rid)
-    except IntegrityError: raise HTTPException(409,'这个豆果链接已经收藏过了')
+    except IntegrityError: raise HTTPException(409,'这个来源链接已经收藏过了')
 
 @app.delete('/api/recipes/{rid}')
 def delete(rid:int):
@@ -93,11 +95,16 @@ def delete(rid:int):
 
 @app.post('/api/imports')
 def import_recipe(link:Link):
-    try: url=canonical_url(link.url)
+    try:
+        original=import_url(link.url)
+        url=canonical_url(original)
     except ValueError as e: raise HTTPException(422,str(e))
     if any(r['source']==url for r in all_recipes()): raise HTTPException(409,'这个链接已经在你的食谱库中了')
     try:
-        return fetch_recipe(url)
+        draft=fetch_recipe(original)
+        if any(r['source']==draft['source'] for r in all_recipes()):
+            raise HTTPException(409,'这篇笔记已经在你的食谱库中了')
+        return draft
     except ValueError as e: raise HTTPException(422,str(e))
 
 @app.post('/api/match')

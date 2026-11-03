@@ -1,0 +1,6 @@
+.source-text { margin: 20px 0; padding: 16px; border: 1px solid var(--border); background: #f1f4eb; border-radius: 9px; }
+.source-text summary { cursor: pointer; font-size: 13px; color: var(--green); }
+.source-text p { margin: 10px 0; font-size: 11px; color: #73806a; line-height: 1.8; }
+.source-text textarea { width: 100%; min-height: 150px; max-height: 300px; font-size: 12px; line-height: 1.8; }
+.source-text .original-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.alert p { margin: 0; }

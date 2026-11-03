@@ -5,6 +5,10 @@ from backend.core import canonical_url, parse_douguo
 
 
 def fetch_recipe(url, *, transport=None):
+    from backend.source_urls import is_xiaohongshu
+    if is_xiaohongshu(url):
+        from backend.xiaohongshu import fetch_xiaohongshu
+        return fetch_xiaohongshu(url, transport=transport)
     url = canonical_url(url)
     with httpx.Client(timeout=20, follow_redirects=False, transport=transport,
                       headers={'User-Agent':'ShiShi/0.1 (personal recipe organizer)'}) as client:

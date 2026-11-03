@@ -6,3 +6,5 @@ frontend/dist/
 data/
 *.log
 docs/douguo-sample.html
+.env
+.env.*

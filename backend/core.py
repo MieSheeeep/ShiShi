@@ -1,19 +1,13 @@
 import json
 import re
 from decimal import Decimal
-from urllib.parse import urlsplit
 from bs4 import BeautifulSoup
+from backend.source_urls import canonical_url
 
 ALIASES = {'西红柿':'番茄','马铃薯':'土豆','洋芋':'土豆','食盐':'盐','食用油':'油'}
 def normalize(name):
     name = name.strip()
     return ALIASES.get(name, name)
-
-def canonical_url(url):
-    p = urlsplit(url.strip())
-    if p.scheme not in ('http','https') or p.hostname not in ('www.douguo.com','douguo.com') or p.username or p.password or p.port not in (None,80,443) or not re.fullmatch(r'/cookbook/\d+\.html',p.path):
-        raise ValueError('仅支持豆果菜谱链接：https://www.douguo.com/cookbook/数字.html')
-    return 'https://www.douguo.com' + p.path
 
 def quantity(raw):
     raw = raw.strip().replace(' ', '')
