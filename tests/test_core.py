@@ -29,3 +29,8 @@ def test_jsonld_nested_steps_and_quantity():
     assert recipe['ingredients'][0]['name']=='鸡蛋'
     assert recipe['ingredients'][0]['amount']=='2个'
     assert recipe['steps']==['搅拌','煎熟']
+
+def test_step_number_does_not_remove_temperature_or_repeat_nested_text():
+    html = '<h1>烤面包</h1><table class="retamr"><tr><td><span class="scname">面粉</span><span class="scnum">100克</span></td></tr></table><div class="step"><div class="stepinfo"><p>170度烘烤15分钟</p></div></div>'
+    r=parse_douguo(html,'https://www.douguo.com/cookbook/1.html')
+    assert r['steps']==['170度烘烤15分钟']

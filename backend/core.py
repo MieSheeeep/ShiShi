@@ -85,9 +85,9 @@ def parse_douguo(html, url):
         for idx,name in enumerate(names):
             table_items.append({'name':normalize(name.get_text(strip=True)),'amount':amounts[idx].get_text(strip=True) if idx<len(amounts) else '未注明','kind':'食材'})
     if table_items: data['ingredients'] = table_items
-    steps = soup.select('.step .stepinfo, .step p')
+    steps = soup.select('.step .stepinfo') or soup.select('.step p')
     if steps:
-        data['steps'] = [re.sub(r'^(?:步骤)?\s*\d+\s*[.、：:]?\s*','',x.get_text(' ',strip=True)) for x in steps]
+        data['steps'] = [re.sub(r'^(?:步骤\s*\d+\s*[.、：:]?\s*|\d+\s*[.、：:]\s*)','',x.get_text(' ',strip=True)) for x in steps]
         data['steps'] = [x for x in data['steps'] if x]
     if not data['name'] or not data['ingredients'] or not data['steps']:
         raise ValueError('未找到完整材料和步骤。页面可能需要验证、已失效或排版暂不支持，可手动录入。')

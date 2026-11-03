@@ -1,13 +1,13 @@
 import json
 import os
 from pathlib import Path
-import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, text
-from backend.core import canonical_url, parse_douguo, merge_ingredients, normalize
+from backend.core import canonical_url, merge_ingredients, normalize
 from backend.seed import examples
+from backend.crawler import fetch_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'data'
@@ -97,19 +97,8 @@ def import_recipe(link:Link):
     except ValueError as e: raise HTTPException(422,str(e))
     if any(r['source']==url for r in all_recipes()): raise HTTPException(409,'这个链接已经在你的食谱库中了')
     try:
-        with httpx.Client(timeout=20,follow_redirects=False,headers={'User-Agent':'Mozilla/5.0 (compatible; ShiShi/0.1; personal recipe organizer)'}) as client:
-            with client.stream('GET',url) as response:
-                if response.is_redirect: raise ValueError('豆果返回了跳转页，请使用完整的菜谱链接')
-                response.raise_for_status()
-                chunks=[]; size=0
-                for chunk in response.iter_bytes():
-                    size+=len(chunk)
-                    if size>3_000_000: raise ValueError('页面内容过大，暂不支持导入')
-                    chunks.append(chunk)
-                html=b''.join(chunks).decode('utf-8',errors='replace')
-        return parse_douguo(html,url)
+        return fetch_recipe(url)
     except ValueError as e: raise HTTPException(422,str(e))
-    except httpx.HTTPError: raise HTTPException(502,'暂时无法访问豆果，可能是网络、访问限制或验证页。请稍后重试，也可以手动录入。')
 
 @app.post('/api/match')
 def match(body:Match):
