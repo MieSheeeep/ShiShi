@@ -14,27 +14,27 @@ def recipe_sections(desc):
         line = raw.strip().strip('【】').strip()
         if not line or re.match(r'^#[^\s]+\[话题\]', line):
             continue
-        heading = re.match(r'^(?:[🥬🥚🍅🍳📝✅🔸🔹✨\s]*)(食材|用料|材料|调料|步骤|做法|制作步骤|制作方法|制作过程)\s*[：:]?\s*(.*)$', line)
+        heading = re.match(r'^[^\w\u4e00-\u9fff]*(食材准备|准备食材|所需食材|制作步骤|制作方法|制作过程|魔法步骤|烹饪步骤|食材|用料|材料|调料|步骤|做法)\s*[】\]]?\s*[：:]?\s*(.*)$', line)
         if heading:
-            section = 'steps' if heading[1] in ('步骤','做法','制作步骤','制作方法','制作过程') else 'ingredients'
+            section = 'steps' if heading[1] in ('步骤','做法','制作步骤','制作方法','制作过程','魔法步骤','烹饪步骤') else 'ingredients'
             kind = '调料' if heading[1] == '调料' else '食材'
             line = heading[2].strip('】 \t')
             if not line:
                 continue
-        elif re.match(r'^(?:小贴士|注意事项|心得|营养|热量|备注)\s*[：:]', line) or line.startswith('#'):
+        elif re.match(r'^[^\w\u4e00-\u9fff]*【[^】]+】',raw.strip()) or re.match(r'^(?:小贴士|注意事项|心得|营养|热量|备注)\s*[：:]', line) or '#' in line:
             section = None
             continue
         if section == 'ingredients':
             # Split only explicit ingredient lists; do not infer ingredients from prose.
-            for item in re.split(r'[，,、；;]', line):
+            for item in re.split(r'[，,、；;|｜]', line):
                 item = re.sub(r'^[-•·\s]+', '', item).strip()
                 if not item:
                     continue
-                m = re.fullmatch(r'(.+?)(?:\s+|[：:]\s*|(?=[\d一二两三四五六七八九十半]+(?:个|克|千克|斤|根|勺|片|毫升|升|g|ml)))(.+)', item)
+                m = re.fullmatch(r'(.+?)(?:\s+|[：:]\s*|(?=[\d一二两三四五六七八九十半]+(?:个|克|千克|斤|根|大勺|小勺|勺|片|毫升|升|罐|瓶|袋|块|只|瓣|颗|g|ml))|(?=适量$|少许$|随意$))(.+)', item)
                 name, amount = (m[1].strip(), m[2].strip()) if m else (item, '未注明')
                 ingredients.append({'name':name, 'amount':amount, 'kind':kind})
         elif section == 'steps':
-            steps.append(re.sub(r'^(?:步骤\s*\d+\s*[.、：:]?\s*|\d+\s*[.、：:](?!\d)\s*|[-•·]\s*)', '', line))
+            steps.append(re.sub(r'^(?:步骤\s*\d+\s*[.、：:]?\s*|\d+\s*[.、：:](?!\d)\s*|[❶❷❸❹❺❻❼❽❾❿①②③④⑤⑥⑦⑧⑨⑩]\s*|[-•·]\s*)', '', line))
     return ingredients[:200], steps[:200]
 
 def parse_note(html, url):

@@ -38,6 +38,16 @@ def test_recipe_sections_keep_original():
     assert r['ingredients'][0]=={'name':'西红柿','amount':'2个','kind':'食材'}
     assert r['steps']==['切块。','炒熟。']
 
+def test_decorated_recipe_headings_pipes_and_circled_steps():
+    desc='🌈【食材准备】\n鸡翅 | 可乐1罐 | 姜5片 | 生抽1大勺\n芝麻随意\n🔥【魔法步骤】\n❶ 准备鸡翅\n❷ 加入可乐\n❸ 炖15分钟\n💡【神仙Tips】\n✅ 原文的其他说明\n🌟#厨房[话题]#'
+    r=parse_note(page(desc),URL)
+    assert len(r['ingredients'])==5
+    assert r['ingredients'][1]=={'name':'可乐','amount':'1罐','kind':'食材'}
+    assert r['ingredients'][3]['name']=='生抽' and r['ingredients'][3]['amount']=='1大勺'
+    assert r['ingredients'][4]['name']=='芝麻' and r['ingredients'][4]['amount']=='随意'
+    assert r['steps']==['准备鸡翅','加入可乐','炖15分钟']
+    assert r['source_text']==desc and not r['import_warnings']
+
 def test_note_images_are_album_not_guessed_step_images():
     html=page().replace('"user":', '"imageList":[{"urlDefault":"https://sns-webpic-qc.xhscdn.com/picture.jpg"}],"user":')
     r=parse_note(html,URL)
