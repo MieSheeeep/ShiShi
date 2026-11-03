@@ -58,11 +58,19 @@ def parse_note(html, url):
     user = note.get('user') or {}
     if not isinstance(user, dict):
         user = {}
+    images=[]
+    for img in note.get('image_list') or []:
+        if not isinstance(img,dict):continue
+        src=img.get('url_default') or img.get('url_pre')
+        if not src:
+            src=next((x.get('url') for x in img.get('info_list',[]) if isinstance(x,dict) and x.get('url')),None)
+        if isinstance(src,str):images.append(src)
     return {'name':str(note.get('title') or ''), 'author':str(user.get('nickname') or ''),
             'source':source, 'source_text':desc[:50000], 'minutes':'', 'servings':'',
             'emoji':'🍲', 'tags':['小红书导入'], 'notes':'',
             'ingredients':ingredients or [{'name':'','amount':'','kind':'食材'}],
-            'steps':steps or [''], 'import_warnings':warnings}
+            'steps':steps or [''], 'import_warnings':warnings,
+            'source_images':list(dict.fromkeys(images)), 'step_images':[]}
 
 def fetch_xiaohongshu(value, *, transport=None):
     url = xhs_fetch_url(value)
@@ -82,6 +90,8 @@ def fetch_xiaohongshu(value, *, transport=None):
                         if not location:
                             raise ValueError('小红书返回了无效跳转')
                         target = urljoin(url,location)
+                        if urlsplit(target).hostname in ('www.xiaohongshu.com','xiaohongshu.com') and urlsplit(target).path.startswith('/404'):
+                            raise ValueError('小红书返回访问限制或笔记暂时无法浏览，请稍后重试或在本机配置登录态')
                         if urlsplit(target).hostname in ('www.xiaohongshu.com','xiaohongshu.com') and re.search(r'/(?:login|website-login|captcha|auth)(?:/|$)',urlsplit(target).path):
                             raise ValueError('小红书要求登录或安全验证，请在浏览器中自行处理后重试')
                         url = xhs_fetch_url(target)

@@ -1,14 +1,16 @@
 import json
 import os
+import re
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import create_engine, text
 from backend.core import canonical_url, merge_ingredients, normalize
 from backend.seed import examples
 from backend.crawler import fetch_recipe
 from backend.source_urls import import_url
+from backend.media import download_recipe_images, MEDIA_DIR
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'data'
@@ -37,8 +39,17 @@ class Recipe(BaseModel):
     tags: list[str] = []
     notes: str = ''
     source_text: str = Field(default='',max_length=50000)
+    source_images: list[str] = Field(default_factory=list,max_length=24)
+    step_images: list[list[str]] = Field(default_factory=list,max_length=200)
     ingredients: list[Ingredient] = Field(min_length=1,max_length=200)
     steps: list[str] = Field(min_length=1,max_length=200)
+    @field_validator('source_images','step_images')
+    @classmethod
+    def local_images_only(cls,value):
+        urls=[url for group in value for url in group] if value and isinstance(value[0],list) else value
+        if len(urls)>48 or any(not re.fullmatch(r'/api/media/[a-f0-9]{64}\.(?:jpg|png|webp|gif)',url) for url in urls):
+            raise ValueError('图片必须是食拾已保存的本地图片')
+        return value
 class Link(BaseModel):
     url: str = Field(min_length=1,max_length=20000)
 class Match(BaseModel):
@@ -104,7 +115,7 @@ def import_recipe(link:Link):
         draft=fetch_recipe(original)
         if any(r['source']==draft['source'] for r in all_recipes()):
             raise HTTPException(409,'这篇笔记已经在你的食谱库中了')
-        return draft
+        return download_recipe_images(draft)
     except ValueError as e: raise HTTPException(422,str(e))
 
 @app.post('/api/match')
@@ -145,5 +156,7 @@ def set_settings(body:Match):
     with engine.begin() as db: db.execute(text("INSERT INTO settings(key,body) VALUES('pantry',:body) ON CONFLICT(key) DO UPDATE SET body=excluded.body"),{'body':body.model_dump_json()})
     return {'ok':True}
 
+MEDIA_DIR.mkdir(parents=True,exist_ok=True)
+app.mount('/api/media',StaticFiles(directory=MEDIA_DIR),name='recipe-media')
 dist=ROOT/'frontend'/'dist'
 if dist.exists(): app.mount('/',StaticFiles(directory=dist,html=True),name='frontend')

@@ -1,7 +1,7 @@
 import json
 import httpx
 import pytest
-from backend.source_urls import canonical_url, import_url
+from backend.source_urls import canonical_url, import_url, xhs_fetch_url
 from backend.xiaohongshu import parse_note, fetch_xiaohongshu
 
 ID='0123456789abcdef01234567'
@@ -19,6 +19,14 @@ def test_share_text_and_canonical_dedup():
     assert import_url('这是分享文案 '+signed+' 。')==signed
     assert canonical_url('http://xhslink.com/a/abc123')=='https://xhslink.com/a/abc123'
 
+def test_fetch_keeps_original_share_path():
+    original=f'https://www.xiaohongshu.com/discovery/item/{ID}?xsec_token=abc%2Bdef'
+    assert xhs_fetch_url(original)==original
+
+def test_access_error_redirect_has_readable_reason():
+    transport=httpx.MockTransport(lambda req:httpx.Response(302,headers={'Location':'/404/sec_abcd?error_code=300013'}))
+    with pytest.raises(ValueError,match='访问限制'):fetch_xiaohongshu(URL,transport=transport)
+
 @pytest.mark.parametrize('bad',['https://www.xiaohongshu.com.evil.org/explore/'+ID,'https://127.0.0.1/explore/'+ID,'https://www.xiaohongshu.com:444/explore/'+ID,'https://www.xiaohongshu.com/user/profile/'+ID,'https://www.xiaohongshu.com@evil.com/explore/'+ID])
 def test_reject_unsupported_urls(bad):
     with pytest.raises(ValueError):canonical_url(bad)
@@ -29,6 +37,12 @@ def test_recipe_sections_keep_original():
     assert r['source_text']==DESC
     assert r['ingredients'][0]=={'name':'西红柿','amount':'2个','kind':'食材'}
     assert r['steps']==['切块。','炒熟。']
+
+def test_note_images_are_album_not_guessed_step_images():
+    html=page().replace('"user":', '"imageList":[{"urlDefault":"https://sns-webpic-qc.xhscdn.com/picture.jpg"}],"user":')
+    r=parse_note(html,URL)
+    assert r['source_images']==['https://sns-webpic-qc.xhscdn.com/picture.jpg']
+    assert r['step_images']==[]
 
 def test_missing_sections_are_editable_not_invented():
     r=parse_note(page('今天的晚餐很好吃。食谱在图片里。'),URL)

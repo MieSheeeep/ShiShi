@@ -39,4 +39,4 @@ def xhs_fetch_url(value):
     # Keep the original query byte-for-byte for signed share links, but never persist it.
     query = urlsplit(value).query
     p = urlsplit(canonical)
-    return urlunsplit((p.scheme, p.netloc, p.path, query, ''))
+    return urlunsplit((p.scheme, p.netloc, urlsplit(value).path, query, ''))

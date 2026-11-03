@@ -85,4 +85,15 @@ def parse_douguo(html, url):
         data['steps'] = [x for x in data['steps'] if x]
     if not data['name'] or not data['ingredients'] or not data['steps']:
         raise ValueError('未找到完整材料和步骤。页面可能需要验证、已失效或排版暂不支持，可手动录入。')
+    data['step_images']=[]
+    for step in steps:
+        container=step.find_parent(class_='stepcont')
+        urls=[]
+        if container:
+            for picture in container.select('img'):
+                anchor=picture.find_parent('a')
+                src=picture.get('data-origin') or (anchor.get('data-origin') if anchor else None) or picture.get('data-src') or picture.get('src')
+                if src:urls.append(src)
+        data['step_images'].append(list(dict.fromkeys(urls)))
+    data['source_images']=[]
     return data

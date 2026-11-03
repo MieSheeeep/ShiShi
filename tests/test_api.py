@@ -15,6 +15,10 @@ def test_full_flow(tmp_path,monkeypatch):
         assert c.post('/api/recipes',json=data).status_code==409
         assert c.post('/api/imports',json={'url':data['source']+'?from=x'}).status_code==409
         assert c.post('/api/imports',json={'url':'https://example.org'}).status_code==422
+        assert c.post('/api/recipes',json=dict(data,source='',source_images=['http://127.0.0.1/private'])).status_code==422
+        local='/api/media/'+'a'*64+'.jpg'
+        recipe['step_images']=[[local],[]]
+        assert c.put('/api/recipes/'+str(recipe['id']),json=recipe).json()['step_images']==[[local],[]]
         results=c.post('/api/match',json={'ingredients':['西红柿'],'staples':['盐']}).json()
         assert next(x for x in results if x['id']==recipe['id'])['missing']==[]
         items=c.post('/api/shopping',json={'ids':[recipe['id']]}).json()
