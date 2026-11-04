@@ -106,11 +106,11 @@ def test_import_save_reload_and_duplicate_note(tmp_path,monkeypatch):
     monkeypatch.setattr(module,'fetch_recipe',lambda url:fetch_xiaohongshu(url,transport=transport))
     with TestClient(module.app) as c:
         draft=c.post('/api/imports',json={'url':'分享笔记 '+URL+'?xsec_token=demo'}).json()
-        assert draft['source_text']==DESC
+        assert draft['source']['original_text']==DESC
         saved=c.post('/api/recipes',json=draft)
         assert saved.status_code==200
         body=saved.json()
-        assert body['source']==URL and body['ingredients'][0]['name']=='番茄'
-        assert next(r for r in c.get('/api/recipes').json() if r['id']==body['id'])['source_text']==DESC
+        assert body['source']['url']==URL and body['ingredients'][0]['name']=='番茄'
+        assert next(r for r in c.get('/api/recipes').json() if r['id']==body['id'])['source']['original_text']==DESC
         assert c.post('/api/imports',json={'url':URL+'?xsec_token=another'}).status_code==409
         assert c.post('/api/recipes',json=dict(draft,source=URL.replace('/explore/','/discovery/item/'))).status_code==409

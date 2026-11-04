@@ -1,13 +1,13 @@
 import json
 import os
-import re
 from pathlib import Path
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from sqlalchemy import create_engine, text
 from backend.core import canonical_url, merge_ingredients, normalize
-from backend.seed import examples
+from backend.recipe_schema import Recipe, draft_v2
+from backend import recipe_store as store
 from backend.crawler import fetch_recipe
 from backend.source_urls import import_url
 from backend.media import download_recipe_images, MEDIA_DIR
@@ -16,40 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'data'
 DATA.mkdir(exist_ok=True)
 engine = create_engine(os.getenv('SHISHI_DATABASE_URL',f'sqlite:///{DATA / "shishi.db"}'),connect_args={'check_same_thread':False})
-with engine.begin() as db:
-    db.execute(text('CREATE TABLE IF NOT EXISTS recipes (id INTEGER PRIMARY KEY, source TEXT UNIQUE, body TEXT NOT NULL)'))
-    db.execute(text('CREATE TABLE IF NOT EXISTS shopping (id INTEGER PRIMARY KEY CHECK(id=1), body TEXT NOT NULL)'))
-    db.execute(text('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, body TEXT NOT NULL)'))
-    if not db.execute(text("SELECT key FROM settings WHERE key='seeded'")).first():
-        for r in examples(): db.execute(text('INSERT INTO recipes(source,body) VALUES(NULL,:body)'),{'body':json.dumps(r,ensure_ascii=False)})
-        db.execute(text("INSERT INTO settings VALUES('seeded','true')"))
+store.initialize(engine)
 app = FastAPI(title='食拾 · 本地食谱管理')
 
-class Ingredient(BaseModel):
-    name: str = Field(min_length=1,max_length=100)
-    amount: str = Field(default='未注明',max_length=100)
-    kind: str = '食材'
-class Recipe(BaseModel):
-    name: str = Field(min_length=1,max_length=200)
-    author: str = ''
-    source: str = ''
-    minutes: str = ''
-    servings: str = ''
-    emoji: str = '🍲'
-    tags: list[str] = []
-    notes: str = ''
-    source_text: str = Field(default='',max_length=50000)
-    source_images: list[str] = Field(default_factory=list,max_length=24)
-    step_images: list[list[str]] = Field(default_factory=list,max_length=200)
-    ingredients: list[Ingredient] = Field(min_length=1,max_length=200)
-    steps: list[str] = Field(min_length=1,max_length=200)
-    @field_validator('source_images','step_images')
-    @classmethod
-    def local_images_only(cls,value):
-        urls=[url for group in value for url in group] if value and isinstance(value[0],list) else value
-        if len(urls)>48 or any(not re.fullmatch(r'/api/media/[a-f0-9]{64}\.(?:jpg|png|webp|gif)',url) for url in urls):
-            raise ValueError('图片必须是食拾已保存的本地图片')
-        return value
 class Link(BaseModel):
     url: str = Field(min_length=1,max_length=20000)
 class Match(BaseModel):
@@ -60,44 +29,57 @@ class Selection(BaseModel):
 class Shopping(BaseModel):
     items: list[dict]
 
-def all_recipes():
-    with engine.connect() as db:
-        return [dict(json.loads(row.body),id=row.id) for row in db.execute(text('SELECT id,body FROM recipes ORDER BY id DESC'))]
-
-def validated(recipe):
-    body = recipe.model_dump()
-    body['name'] = body['name'].strip()
-    if not body['name'] or any(not x.strip() for x in body['steps']) or any(not x['name'].strip() for x in body['ingredients']):
-        raise HTTPException(422,'菜名、材料和步骤不能为空')
-    if body['source']:
-        try: body['source'] = canonical_url(body['source'])
-        except ValueError as e: raise HTTPException(422,str(e))
-    for item in body['ingredients']: item['name'] = normalize(item['name'])
-    return body
+def all_recipes(): return store.list_recipes(engine)
 
 @app.get('/api/recipes')
-def recipes(): return all_recipes()
+def recipes(tag_id: list[str] = Query(default=[])):
+    return [r for r in all_recipes() if set(tag_id).issubset(r['tag_ids'])]
+
+def persist_recipe(recipe,rid=None):
+    from sqlalchemy.exc import IntegrityError
+    try:return store.write_recipe(engine,recipe,rid)
+    except IntegrityError:raise HTTPException(409,'这个来源链接已经收藏过了')
+    except LookupError as e:raise HTTPException(404,str(e))
+    except ValueError as e:raise HTTPException(422,str(e))
 
 @app.post('/api/recipes')
-def save(recipe:Recipe):
-    body=validated(recipe)
-    from sqlalchemy.exc import IntegrityError
-    try:
-        with engine.begin() as db:
-            result=db.execute(text('INSERT INTO recipes(source,body) VALUES(:source,:body)'),{'source':body['source'] or None,'body':json.dumps(body,ensure_ascii=False)})
-            return dict(body,id=result.lastrowid)
-    except IntegrityError: raise HTTPException(409,'这个来源链接已经收藏过了')
+def save(recipe:Recipe):return persist_recipe(recipe)
 
 @app.put('/api/recipes/{rid}')
-def update(rid:int,recipe:Recipe):
-    body=validated(recipe)
+def update(rid:int,recipe:Recipe):return persist_recipe(recipe,rid)
+
+class NamedItem(BaseModel):
+    name: str = Field(min_length=1,max_length=80)
+class NewTag(NamedItem):
+    group_id: str
+
+def tag_action(action,*args):
     from sqlalchemy.exc import IntegrityError
-    try:
-        with engine.begin() as db:
-            result=db.execute(text('UPDATE recipes SET source=:source,body=:body WHERE id=:id'),{'id':rid,'source':body['source'] or None,'body':json.dumps(body,ensure_ascii=False)})
-            if not result.rowcount: raise HTTPException(404,'食谱不存在')
-        return dict(body,id=rid)
-    except IntegrityError: raise HTTPException(409,'这个来源链接已经收藏过了')
+    try:return action(engine,*args)
+    except IntegrityError:raise HTTPException(409,'同一分组内已有这个名称')
+    except LookupError as e:raise HTTPException(404,str(e))
+    except ValueError as e:raise HTTPException(422,str(e))
+
+@app.get('/api/tags')
+def get_tags():return store.catalogue(engine)
+
+@app.post('/api/tag-groups')
+def add_group(item:NamedItem):return tag_action(store.create_group,item.name)
+
+@app.post('/api/tags')
+def add_tag(item:NewTag):return tag_action(store.create_tag,item.group_id,item.name)
+
+@app.patch('/api/tag-groups/{gid}')
+def rename_group(gid:str,item:NamedItem):return tag_action(store.rename_item,'tag_groups',gid,item.name)
+
+@app.patch('/api/tags/{tid}')
+def rename_tag(tid:str,item:NamedItem):return tag_action(store.rename_item,'tags',tid,item.name)
+
+@app.delete('/api/tag-groups/{gid}')
+def remove_group(gid:str):return tag_action(store.delete_item,'tag_groups',gid)
+
+@app.delete('/api/tags/{tid}')
+def remove_tag(tid:str):return tag_action(store.delete_item,'tags',tid)
 
 @app.delete('/api/recipes/{rid}')
 def delete(rid:int):
@@ -110,12 +92,12 @@ def import_recipe(link:Link):
         original=import_url(link.url)
         url=canonical_url(original)
     except ValueError as e: raise HTTPException(422,str(e))
-    if any(r['source']==url for r in all_recipes()): raise HTTPException(409,'这个链接已经在你的食谱库中了')
+    if any(r['source']['url']==url for r in all_recipes()): raise HTTPException(409,'这个链接已经在你的食谱库中了')
     try:
         draft=fetch_recipe(original)
-        if any(r['source']==draft['source'] for r in all_recipes()):
+        if any(r['source']['url']==draft['source'] for r in all_recipes()):
             raise HTTPException(409,'这篇笔记已经在你的食谱库中了')
-        return download_recipe_images(draft)
+        return draft_v2(download_recipe_images(draft))
     except ValueError as e: raise HTTPException(422,str(e))
 
 @app.post('/api/match')
