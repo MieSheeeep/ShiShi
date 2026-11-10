@@ -1,0 +1,116 @@
+.daily-feature { display:grid; grid-template-columns:1.08fr 1fr; background:var(--green); color:var(--surface); border-radius:12px; overflow:hidden; min-height:350px; }
+.daily-copy { padding:30px 32px 22px; display:flex; flex-direction:column; min-width:0; }
+.daily-topline { display:flex; align-items:center; justify-content:space-between; gap:12px; font-size:10px; }
+.daily-kicker { display:flex; align-items:center; gap:8px; letter-spacing:2px; color:#f0e5ce; white-space:nowrap; }
+.daily-kicker i { width:5px; height:5px; background:#c3aa7d; border-radius:50%; }
+.daily-season { color:#d5d9ca; font-size:10px; }
+.daily-copy h2 { font-size:clamp(24px,2.3vw,36px); font-weight:500; line-height:1.5; letter-spacing:1px; margin:30px 0 14px; text-wrap:balance; }
+.daily-intro { font-size:12px; color:#dde0d3; line-height:1.95; max-width:340px; margin-bottom:20px; }
+.daily-recipe-name { display:flex; align-items:center; flex-wrap:wrap; gap:14px; margin-bottom:25px; }
+.daily-recipe-name>span:first-child { font-size:15px; font-weight:600; }
+.daily-recipe-name>span:not(:first-child) { display:flex; align-items:center; gap:5px; color:#d6dccf; font-size:10px; }
+.daily-actions { display:flex; align-items:center; flex-wrap:wrap; gap:19px; margin-top:auto; }
+.daily-read { background:#f5f0e4; color:var(--green); border-radius:5px; padding:12px 16px; font-size:11px; font-weight:600; }
+.daily-read:hover { background:#fffaf0; }
+.daily-archive { color:#e1e1d2; padding:8px 0; font-size:11px; }
+.daily-archive:hover { color:white; text-decoration:underline; }
+.daily-footnote { display:flex; justify-content:space-between; gap:12px; border-top:1px solid #ffffff26; margin-top:25px; padding-top:16px; font-size:9px; color:#ccd3c5; }
+.daily-visual { position:relative; min-width:0; min-height:350px; background:#524c3d; }
+.daily-visual>img { width:100%; height:100%; position:absolute; inset:0; object-fit:cover; object-position:59% center; }
+.daily-date { position:absolute; top:20px; right:20px; display:flex; flex-direction:column; align-items:center; background:#fffcf5f2; color:var(--green); padding:12px 14px 10px; min-width:84px; border:1px solid #ffffff60; border-radius:3px; }
+.daily-date>span:first-child { font-size:9px; letter-spacing:1px; }
+.daily-date strong { font:50px/1.2 Georgia,serif; font-weight:400; }
+.daily-date>span:last-child { font-size:8px; border-top:1px solid #d8d0c2; margin-top:5px; padding-top:7px; }
+.daily-image-credit { position:absolute; bottom:10px; right:12px; font-size:9px; color:#fffaf0; background:#29282399; padding:4px 7px; border-radius:3px; }
+.daily-food-placeholder { height:100%; display:grid; place-items:center; font-size:90px; background:#d9cdb6; }
+.daily-overlay { z-index:60; }
+.daily-modal { width:680px; }
+.daily-modal h3 { font-size:16px; color:var(--green); margin:28px 0 15px; }
+.edition-lead { font-size:13px; line-height:1.9; color:var(--muted); }
+.edition-image { margin:22px 0; }
+.edition-image img { display:block; width:100%; max-height:310px; object-fit:cover; border-radius:8px; }
+.edition-image figcaption { text-align:right; font-size:10px; color:var(--muted); margin-top:7px; }
+.edition-meta { display:flex; flex-wrap:wrap; gap:20px; font-size:12px; color:var(--muted); }
+.edition-meta>span { display:flex; align-items:center; gap:6px; }
+.edition-reason { border-left:2px solid #a98a58; padding:16px 18px; margin:24px 0; }
+.edition-reason>span { font-size:11px; color:var(--green); font-weight:600; }
+.edition-reason p,.edition-pairing p,.edition-culture p { margin:8px 0 0; font-size:13px; line-height:1.95; color:#615c51; }
+.edition-steps { padding-left:25px; margin:0; }
+.edition-steps li { padding:0 0 16px 7px; font-size:13px; line-height:1.95; }
+.edition-steps li::marker { color:var(--accent); font:17px Georgia,serif; }
+.edition-pairing { padding:1px 0 22px; border-bottom:1px solid var(--border); }
+.edition-culture { margin:26px 0; }
+.edition-culture>span { font-size:10px; color:var(--accent); letter-spacing:2px; }
+.edition-culture h3 { font:20px 'Songti SC','SimSun',serif; margin:12px 0; }
+.edition-culture a { display:flex; align-items:center; gap:4px; font-size:10px; color:#52634e; margin-top:14px; text-decoration:underline; text-underline-offset:3px; }
+.edition-culture small,.edition-credit { display:block; font-size:10px; color:var(--muted); line-height:1.8; margin-top:12px; }
+.edition-back { margin-bottom:20px; }
+.edition-archive-row { width:100%; display:flex; gap:22px; justify-content:flex-start; text-align:left; border-top:1px solid var(--border); padding:24px 0; }
+.edition-archive-row:last-child { border-bottom:1px solid var(--border); }
+.edition-archive-row:hover { background:#eee9df; }
+.archive-day { display:flex; flex-direction:column; align-items:center; min-width:70px; color:var(--green); }
+.archive-day strong { font:36px Georgia,serif; }
+.archive-day small { font-size:9px; letter-spacing:1px; margin-top:7px; color:var(--muted); }
+.archive-info { display:flex; flex:1; min-width:0; flex-direction:column; gap:9px; }
+.archive-info small { font-size:10px; color:var(--accent); }
+.archive-info strong { font-size:16px; font-weight:500; }
+.archive-info>span { font-size:11px; color:var(--muted); line-height:1.7; }
+.daily-empty { background:var(--green); color:var(--surface); padding:30px; border-radius:12px; }
+.daily-empty p { font-size:12px; line-height:1.8; }
+.solar-diary { display:flex; gap:26px; padding:25px 28px; margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:9px; }
+.solar-diary-label { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:82px; border-right:1px solid var(--border); padding-right:26px; }
+.solar-diary-label>span { font-size:10px; color:var(--accent); letter-spacing:2px; white-space:nowrap; }
+.solar-diary-label strong { font:28px/1.6 'Songti SC','SimSun',serif; letter-spacing:4px; color:var(--green); margin-top:6px; }
+.solar-diary-label small { font-size:9px; color:var(--muted); margin-top:4px; white-space:nowrap; }
+.solar-diary-copy { min-width:0; }
+.solar-diary-copy h3 { font:20px/1.6 'Songti SC','SimSun',serif; color:var(--green); margin-bottom:8px; }
+.solar-diary-copy p { font-size:12px; line-height:2; color:#615c51; margin-bottom:12px; }
+.solar-diary-context { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; font-size:10px; line-height:1.8; color:var(--muted); }
+.solar-diary-context a { display:inline-flex; align-items:center; gap:3px; color:var(--accent); text-decoration:underline; text-underline-offset:3px; }
+.solar-diary-author { margin-left:auto; }
+.edition-diary { padding-bottom:24px; border-bottom:1px solid var(--border); }
+.edition-diary .diary-background { font-size:11px; color:var(--muted); }
+@media(max-width:650px) {
+  .solar-diary { gap:17px; padding:22px 18px; }
+  .solar-diary-label { min-width:58px; padding-right:15px; }
+  .solar-diary-label>span { font-size:9px; letter-spacing:1px; }
+  .solar-diary-label strong { font-size:25px; letter-spacing:2px; }
+  .solar-diary-label small { font-size:8px; }
+  .solar-diary-copy h3 { font-size:18px; }
+}
+@media(max-width:360px) { .solar-diary { display:block; } .solar-diary-label { flex-direction:row; justify-content:flex-start; gap:12px; border-right:0; border-bottom:1px solid var(--border); padding:0 0 12px; margin-bottom:14px; } .solar-diary-label strong { margin:0; font-size:22px; } .solar-diary-label small { margin:0 0 0 auto; } }
+@media(min-width:1500px) { .daily-copy { padding:36px 40px 25px; } .daily-visual { min-height:380px; } }
+@media(max-width:1150px) { .daily-copy { padding:26px 25px 20px; } .daily-topline { flex-wrap:wrap; gap:8px; } .daily-copy h2 { margin-top:22px; } }
+@media(max-width:900px) and (min-width:769px) { .daily-feature { grid-template-columns:1fr; } .daily-visual { min-height:260px; } }
+@media(max-width:650px) {
+  .daily-feature { grid-template-columns:1fr; }
+  .daily-copy { padding:24px 23px 19px; }
+  .daily-copy h2 { font-size:26px; margin:24px 0 12px; }
+  .daily-intro { font-size:12px; max-width:none; }
+  .daily-topline { flex-wrap:nowrap; }
+  .daily-season { font-size:9px; }
+  .daily-visual { min-height:235px; }
+  .daily-visual>img { object-position:60% 58%; }
+  .daily-date { top:14px; right:14px; padding:8px 11px; min-width:70px; }
+  .daily-date strong { font-size:39px; }
+  .daily-date>span:last-child { font-size:7px; }
+  .daily-footnote { margin-top:22px; }
+  .daily-modal { padding:35px 23px 27px; }
+  .edition-archive-row { gap:12px; }
+  .archive-day { min-width:52px; }
+  .archive-info strong { font-size:14px; }
+  .page-heading h1 { font-size:25px; }
+  .page-heading { gap:10px; }
+  .page-heading>.primary { flex-shrink:0; }
+}
+@media(max-width:360px) {
+  .daily-copy { padding:22px 18px 18px; }
+  .daily-copy h2 { font-size:23px; }
+  .daily-topline { flex-wrap:wrap; }
+  .daily-actions { gap:14px; }
+  .daily-read { padding:11px 12px; font-size:10px; }
+  .daily-archive { font-size:10px; }
+  .page-heading { align-items:flex-start; }
+  .page-heading h1 { font-size:21px; }
+  .page-heading>.primary { padding:10px 9px; font-size:10px; }
+}

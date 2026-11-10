@@ -72,3 +72,5 @@
 旧版步骤文字数组与平行的 `step_images` 按下标合并为步骤对象，生成稳定 ID；旧的文字标签迁到“我的分类”。迁移前通过 SQLite 在线备份生成 `data/shishi.db.pre-v2-时间.bak`，然后在同一事务里升级已有记录。旧记录的快照标为 `legacy_saved`，代表迁移时已保存版本，无法还原更早已被编辑掉的内容。未知版本号拒绝读取转换，避免误降级。
 
 图片仍在 `data/media/`，数据库备份不包含图片文件。完整备份与恢复需要同时保留数据库和媒体目录，恢复旧版本时使用对应版本程序。实现见 [recipe_schema.py](../backend/recipe_schema.py) 与 [recipe_store.py](../backend/recipe_store.py)。
+
+首页精选配图为随程序发布的例外：允许引用项目中真实存在的 `/editorial/文件名.png`（另支持 jpg、webp），对应 `frontend/public/editorial/` 静态资源。收藏精选时写入 `images` 与 `source.original_images`，并在备注中保留 AI 示意图标注。备份迁移时也应保留程序资源，不能只复制数据库。站外图片与不存在的精选资源仍拒绝保存。

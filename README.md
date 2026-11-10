@@ -12,7 +12,7 @@ Vue 3 · FastAPI · SQLite · 多账号本地部署
 
 </div>
 
-![食拾个人食谱库](docs/screenshots/recipe-library.jpg)
+![首页今日精选与深松绿暖白配色](docs/screenshots/home-daily-desktop.png)
 
 ## 项目介绍
 
@@ -24,6 +24,8 @@ Vue 3 · FastAPI · SQLite · 多账号本地部署
 
 | 功能 | 当前支持 |
 | --- | --- |
+| 首页每日精选 | 本地固定排期，突出当期做法、日期与配图；可回看往期，进入编辑器收藏 |
+| 饮食内容 | 推荐理由、一餐搭配与附出处的文化小记；首期为 2026-11-08 至 11-10 三期家常示范 |
 | 账号登录 | 注册与登录后使用，食谱、标签、采购清单和常备食材按账号隔离 |
 | 实物封面 | 卡片优先显示菜品实物照片；导入原图、步骤图或上传的照片都可设为封面，内置示例自带真实菜品图 |
 | 豆果链接导入 | 提取菜名、作者、食材与步骤，核对编辑后保存，提示重复链接 |
@@ -39,6 +41,22 @@ Vue 3 · FastAPI · SQLite · 多账号本地部署
 | 本地保存 | 食谱、清单与食材设置持久化到 SQLite |
 
 ## 项目预览
+
+### 今日精选与往期
+
+首页原横幅改为每日精选，全站使用深松绿、暖纸白、象牙白与少量暗朱红。内容和配图随项目保存在本地；文化资料链接仅供查阅，不影响本地浏览。示意配图由 AI 生成并标注。
+
+已有排期日期显示“今日精选”，没有当天排期时显示“最近精选”与真实发布日期，不自动编造更新。往期只包含已发布内容。打开做法后，可将材料、步骤、配图和资料出处带入现有编辑器，修改后收藏，再使用原有菜单与采购清单流程。
+
+每日精选下方增加“节气日记”：展示本期节气、日期与一段原创餐桌随记；节气背景单独附来源。三期初冬内容各有独立日记，往期详情和收藏草稿也会保留。
+
+![节气日记与今日精选](docs/screenshots/home-solar-diary.png)
+
+![往期精选](docs/screenshots/home-daily-archive.png)
+
+<img src="docs/screenshots/home-daily-mobile.png" alt="手机端今日精选与底部导航" width="390" />
+
+内容范围、排期维护及配图说明见 [本地精选内容说明](docs/daily-content.md)。当前只提供三期示范，尚未填充全年节气、节日排期。
 
 以下为本地运行的实际页面截图；食谱库与匹配示例使用内置演示食谱，真实豆果导入结果见下图。
 
@@ -246,13 +264,13 @@ npm run dev
 ```powershell
 # 项目根目录
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
-node --test tests/recipe-editing.test.mjs
+node --test tests/recipe-editing.test.mjs tests/daily-content.test.mjs
 
 cd frontend
 npm run build
 ```
 
-现有 57 项后端测试和 2 项前端逻辑测试，覆盖导入解析、网络限制、图片保存、用量合并、接口，以及账号鉴权、用户隔离、封面与上传、V2 迁移备份、稳定 ID、排序配图、快照保护、分组标签和组合筛选。详见 [验证记录](docs/verification.md)。
+现有 61 项后端测试、6 项前端逻辑测试，覆盖账号鉴权、用户隔离、封面上传、食谱编辑、每日精选日期、节气日记与本地图片校验，详见 [验证记录](docs/verification.md)。
 
 ## 本地数据与备份
 
