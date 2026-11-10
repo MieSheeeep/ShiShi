@@ -8,9 +8,14 @@ export function shanghaiDate(now=new Date()) {
 export const publishedEditions=(rows,today)=>rows.filter(e=>e.date<=today).sort((a,b)=>b.date.localeCompare(a.date))
 export const selectEdition=(rows,today)=>publishedEditions(rows,today)[0]||null
 
+const winterDiary=(title,text)=>({term:'立冬',title,text,
+  background:'立冬是冬季的第一个节气。节气记下时序，各地的冷暖仍有差异。',
+  reference:{title:'节气背景：中国天气网 · 立冬',url:'https://e.weather.com.cn/mtqzt/4849618.shtml'}})
+
 export const editions=[
   {
     date:'2026-11-10',issue:'003',name:'南瓜小米粥',emoji:'🥣',theme:'初冬 · 家常早餐',
+    diary:winterDiary('天渐寒，晨粥正暖','清晨的厨房，从一锅小米粥开始醒来。南瓜在水里慢慢煮软，木勺搅过，留下淡淡的谷香。把早餐端上桌，也把一天的脚步放缓一点。'),
     headline:'把清晨，煮得暖一点。',intro:'一把小米，一块南瓜。用一锅慢煮的金黄，开始平常的一天。',
     reason:'南瓜切成小块，与小米同锅慢煮。食材简单，留一点时间给早餐，也留一点从容给自己。',
     image:'/editorial/pumpkin-millet.png',imageAlt:'陶碗中的南瓜小米粥，旁边放着木勺',imageCredit:'AI 生成示意配图',
@@ -23,6 +28,7 @@ export const editions=[
   },
   {
     date:'2026-11-09',issue:'002',name:'香菇白菜炖豆腐',emoji:'🍲',theme:'初冬 · 一锅家常',
+    diary:winterDiary('把初冬，炖进日常','天色收得早，晚饭也想做得暖一些。白菜、香菇和豆腐在锅里相聚，等一阵热气升起，厨房就有了家的气息。寻常的一锅，值得慢慢吃。'),
     headline:'一锅热气，就是晚饭。',intro:'白菜的清甜、香菇的鲜香，都留在这一锅里。',
     reason:'白菜、鲜香菇与豆腐同锅炖煮，材料容易准备。忙碌的工作日，可以把操作交给小火慢炖。',
     minutes:'25',servings:'2人份',tools:'炖锅',tags:['家常菜','炖煮'],
@@ -34,6 +40,7 @@ export const editions=[
   },
   {
     date:'2026-11-08',issue:'001',name:'番茄鸡蛋汤面',emoji:'🍜',theme:'初冬 · 一人食',
+    diary:winterDiary('一碗热面，记下冬的开篇','立冬之后，给自己留一碗热面的时间。番茄煮出汤色，青菜添上一抹绿。不必等人齐，也不必等周末，一个人的晚饭同样值得认真。'),
     headline:'一个人，也认真开饭。',intro:'番茄炒出汁，鸡蛋煎出香。把寻常食材，做成一碗热面。',
     reason:'一份面、一枚鸡蛋，加上番茄和青菜。把几种食材安排在同一锅里，收拾起来也轻松。',
     minutes:'20',servings:'1人份',tools:'煮锅',tags:['一人食','面食'],
@@ -47,10 +54,11 @@ export const editions=[
 
 export function editionDraft(edition) {
   const images=edition.image?[edition.image]:[]
+  const diary=edition.diary?`节气日记 · ${edition.diary.term} · ${edition.diary.title}\n${edition.diary.text}\n${edition.diary.background}\n${edition.diary.reference.title} ${edition.diary.reference.url}\n日记文字：食拾原创` : ''
   return {schema_version:2,name:edition.name,emoji:edition.emoji,minutes:edition.minutes,servings:edition.servings,
-    source:{platform:'manual',url:'',author:'食拾精选',original_text:edition.culture,original_images:[...images]},images,
+    source:{platform:'manual',url:'',author:'食拾精选',original_text:[diary,edition.culture].filter(Boolean).join('\n\n'),original_images:[...images]},images,
     tags:edition.tags.map(name=>({name,group:'我的分类'})),
     ingredients:edition.ingredients.map(([name,amount])=>({id:newId(),name,amount,kind:['油','盐','姜'].includes(name)?'调料':'食材'})),
     steps:edition.steps.map(text=>({id:newId(),text,images:[]})),
-    notes:`食拾每日精选 · ${edition.date} · 家常示范做法\n\n搭配：${edition.pairing}\n\n${edition.cultureTitle}：${edition.culture}${edition.references.length?'\n\n文化资料：\n'+edition.references.map(r=>r.title+' '+r.url).join('\n'):''}${edition.imageCredit?'\n\n配图：'+edition.imageCredit:''}`}
+    notes:`食拾每日精选 · ${edition.date} · 家常示范做法${diary?'\n\n'+diary:''}\n\n搭配：${edition.pairing}\n\n${edition.cultureTitle}：${edition.culture}${edition.references.length?'\n\n文化资料：\n'+edition.references.map(r=>r.title+' '+r.url).join('\n'):''}${edition.imageCredit?'\n\n配图：'+edition.imageCredit:''}`}
 }

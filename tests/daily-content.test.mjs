@@ -28,3 +28,17 @@ test('collecting a curated recipe creates an independent editable V2 document',(
   assert.equal(draft.source.url,'')
   assert.ok(draft.notes.includes('食拾'))
 })
+
+test('each published edition carries its own sourced solar-term diary into the collection',()=>{
+  for(const edition of editions){
+    assert.equal(edition.diary.term,'立冬')
+    assert.ok(edition.diary.title&&edition.diary.text)
+    assert.match(edition.diary.reference.url,/^https:\/\//)
+    const draft=editionDraft(edition)
+    assert.ok(draft.notes.includes('节气日记'))
+    assert.ok(draft.notes.includes(edition.diary.text))
+    assert.ok(draft.notes.includes(edition.diary.reference.url))
+    assert.ok(draft.source.original_text.includes(edition.diary.text))
+  }
+  assert.equal(new Set(editions.map(e=>e.diary.text)).size,editions.length)
+})

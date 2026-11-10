@@ -29,7 +29,8 @@ onMounted(()=>{ticker=setInterval(syncDate,30000);document.addEventListener('vis
 onBeforeUnmount(()=>{clearInterval(ticker);document.removeEventListener('visibilitychange',syncDate);document.removeEventListener('keydown',keys)})
 </script>
 <template>
-<section class="daily-feature" aria-labelledby="daily-heading" v-if="current">
+<template v-if="current">
+<section class="daily-feature" aria-labelledby="daily-heading">
   <div class="daily-copy">
     <div class="daily-topline"><span class="daily-kicker"><i></i>{{isToday?'今日精选':'最近精选'}}</span><span class="daily-season">{{current.theme}}</span></div>
     <h2 id="daily-heading">{{current.headline}}</h2>
@@ -40,6 +41,11 @@ onBeforeUnmount(()=>{clearInterval(ticker);document.removeEventListener('visibil
   </div>
   <div class="daily-visual"><img v-if="current.image" :src="current.image" :alt="current.imageAlt" fetchpriority="high"/><div v-else class="daily-food-placeholder">{{current.emoji}}</div><div class="daily-date"><span>{{dateMonth(current.date)}}</span><strong>{{dateNumber(current.date)}}</strong><span>每日一食 / {{current.issue}}</span></div><span v-if="current.imageCredit" class="daily-image-credit">{{current.imageCredit}}</span></div>
 </section>
+<section v-if="current.diary" class="solar-diary" aria-labelledby="solar-diary-title">
+  <div class="solar-diary-label"><span>节气日记</span><strong>{{current.diary.term}}</strong><small>{{current.date}}</small></div>
+  <div class="solar-diary-copy"><h3 id="solar-diary-title">{{current.diary.title}}</h3><p>{{current.diary.text}}</p><div class="solar-diary-context"><span>{{current.diary.background}}</span><a :href="current.diary.reference.url" target="_blank" rel="noopener noreferrer">节气背景<ArrowUpRight :size="12"/></a><span class="solar-diary-author">食拾原创</span></div></div>
+</section>
+</template>
 <section v-else class="daily-empty"><h2>今天，也好好吃饭。</h2><p>精选内容尚未发布，先从自己的收藏里找一道喜欢的菜。</p></section>
 <Teleport to="body"><div v-if="archive||opened" class="overlay daily-overlay" @click.self="close">
   <section class="modal daily-modal" role="dialog" aria-modal="true" :aria-labelledby="opened?'edition-title':'archive-title'">
@@ -50,6 +56,7 @@ onBeforeUnmount(()=>{clearInterval(ticker);document.removeEventListener('visibil
       <figure v-if="opened.image" class="edition-image"><img :src="opened.image" :alt="opened.imageAlt"/><figcaption>{{opened.imageCredit}}</figcaption></figure>
       <div class="edition-meta"><span><Clock3 :size="15"/>{{opened.minutes}} 分钟</span><span><Users :size="15"/>{{opened.servings}}</span><span>{{opened.tools}}</span></div>
       <section class="edition-reason"><span>为什么选这道</span><p>{{opened.reason}}</p></section>
+      <section v-if="opened.diary" class="edition-culture edition-diary"><span>节气日记 · {{opened.diary.term}}</span><h3>{{opened.diary.title}}</h3><p>{{opened.diary.text}}</p><p class="diary-background">{{opened.diary.background}}</p><a :href="opened.diary.reference.url" target="_blank" rel="noopener noreferrer">{{opened.diary.reference.title}}<ArrowUpRight :size="13"/></a><small>日记文字：食拾原创</small></section>
       <h3>准备材料</h3><div class="ingredient-line" v-for="[name,amount] in opened.ingredients" :key="name"><span>{{name}}</span><strong>{{amount}}</strong></div>
       <h3>一起做饭</h3><ol class="edition-steps"><li v-for="step in opened.steps" :key="step">{{step}}</li></ol>
       <section class="edition-pairing"><h3>这一餐，怎么搭</h3><p>{{opened.pairing}}</p></section>
