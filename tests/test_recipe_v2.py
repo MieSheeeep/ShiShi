@@ -24,6 +24,12 @@ def client_for(tmp_path,monkeypatch):
     module=importlib.reload(module)
     return TestClient(module.app)
 
+def sign_in(c):
+    """注册临时账号并挂上令牌，让后续接口请求通过鉴权。"""
+    token=c.post('/api/auth/register',json={'username':'tester','password':'shishi123'}).json()['token']
+    c.headers.update({'Authorization':'Bearer '+token})
+    return c
+
 def test_migration_backs_up_and_preserves_old_image_pairing(tmp_path):
     path=tmp_path/'legacy.db';engine=create_engine('sqlite:///'+str(path))
     with engine.begin() as db:
@@ -44,6 +50,7 @@ def test_migration_backs_up_and_preserves_old_image_pairing(tmp_path):
 
 def test_reorder_preserves_ids_images_and_original(tmp_path,monkeypatch):
     with client_for(tmp_path,monkeypatch) as c:
+        sign_in(c)
         r=c.post('/api/recipes',json=legacy());assert r.status_code==200
         saved=r.json();original=copy.deepcopy(saved['original_snapshot'])
         first_id=saved['steps'][0]['id']
@@ -60,6 +67,7 @@ def test_reorder_preserves_ids_images_and_original(tmp_path,monkeypatch):
 
 def test_tags_are_user_defined_and_rename_updates_all_recipes(tmp_path,monkeypatch):
     with client_for(tmp_path,monkeypatch) as c:
+        sign_in(c)
         group=c.post('/api/tag-groups',json={'name':'厨具'}).json()
         tag=c.post('/api/tags',json={'group_id':group['id'],'name':'空气炸锅'}).json()
         taste=c.post('/api/tag-groups',json={'name':'口味'}).json()
@@ -82,6 +90,7 @@ def test_tags_are_user_defined_and_rename_updates_all_recipes(tmp_path,monkeypat
 
 def test_storage_document_tag_ids_survive_roundtrip(tmp_path,monkeypatch):
     with client_for(tmp_path,monkeypatch) as c:
+        sign_in(c)
         saved=c.post('/api/recipes',json=legacy()).json()
         ids=saved['tag_ids'][:]
         del saved['tags']
@@ -91,6 +100,7 @@ def test_storage_document_tag_ids_survive_roundtrip(tmp_path,monkeypatch):
 
 def test_duplicate_step_ids_and_empty_steps_rejected(tmp_path,monkeypatch):
     with client_for(tmp_path,monkeypatch) as c:
+        sign_in(c)
         r=c.post('/api/recipes',json=legacy()).json()
         r['steps'][1]['id']=r['steps'][0]['id']
         assert c.put('/api/recipes/'+str(r['id']),json=r).status_code==422

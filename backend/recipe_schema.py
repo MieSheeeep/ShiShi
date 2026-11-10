@@ -10,9 +10,11 @@ from backend.source_urls import canonical_url
 def now(): return datetime.now(timezone.utc).isoformat()
 def new_id(): return uuid4().hex
 
+LOCAL_IMAGE = re.compile(r'/api/(?:media/[a-f0-9]{64}|demo/[a-z0-9-]+)\.(?:jpg|png|webp|gif)')
+
 def local_images(urls):
     def allowed(url):
-        if re.fullmatch(r'/api/media/[a-f0-9]{64}\.(?:jpg|png|webp|gif)',url):return True
+        if LOCAL_IMAGE.fullmatch(url):return True
         editorial=re.fullmatch(r'/editorial/([a-z0-9-]+\.(?:png|webp|jpg))',url)
         return bool(editorial and (Path(__file__).resolve().parents[1]/'frontend'/'public'/'editorial'/editorial[1]).is_file())
     if len(urls)>48 or any(not allowed(u) for u in urls):
@@ -102,6 +104,7 @@ class Recipe(BaseModel):
     tag_ids: list[str] = Field(default_factory=list,max_length=60)
     notes: str = Field(default='',max_length=50000)
     images: list[str] = Field(default_factory=list,max_length=48)
+    cover: str = ''
     ingredients: list[Ingredient] = Field(min_length=1,max_length=200)
     steps: list[Step] = Field(min_length=1,max_length=200)
     original_snapshot: dict | None = None
@@ -113,6 +116,12 @@ class Recipe(BaseModel):
     @field_validator('images')
     @classmethod
     def clean_images(cls,v):return local_images(v)
+    @field_validator('cover')
+    @classmethod
+    def clean_cover(cls,v):
+        """封面只能使用本地图片或内置演示图，留空则前端回退到图标。"""
+        if v:local_images([v])
+        return v
     @model_validator(mode='after')
     def check_document(self):
         self.schema_version=2
@@ -122,6 +131,15 @@ class Recipe(BaseModel):
             if len({row.id for row in rows})!=len(rows):raise ValueError('每个步骤和食材必须使用不同的 ID')
         local_images(list(dict.fromkeys(self.images+[u for s in self.steps for u in s.images])))
         return self
+
+def first_picture(document):
+    """取食谱的第一张图片作为默认封面：图集优先，其次步骤配图。"""
+    if document.get('images'):
+        return document['images'][0]
+    for step in document.get('steps', []):
+        if step.get('images'):
+            return step['images'][0]
+    return ''
 
 def snapshot(document,kind):
     return {'kind':kind,'captured_at':now(),'recipe':{k:deepcopy(v) for k,v in document.items() if k not in ('original_snapshot','id','updated_at','created_at','tag_ids')}}
@@ -134,5 +152,6 @@ def draft_v2(raw):
     source['imported_at']=now()
     data['created_at']=data['updated_at']=now()
     data['original_snapshot']=snapshot(data,'imported')
+    data['cover']=data.get('cover') or first_picture(data)
     for key in ('author','source_text','source_images','step_images'):data.pop(key,None)
     return data
