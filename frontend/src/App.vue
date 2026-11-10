@@ -3,9 +3,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import RecipeEditor from './components/RecipeEditor.vue'
 import RecipeDetail from './components/RecipeDetail.vue'
 import TagManager from './components/TagManager.vue'
-import { blankRecipe, api } from './recipeEditing'
+import LoginView from './components/LoginView.vue'
+import { blankRecipe, api, clearToken, getToken, onUnauthorized } from './recipeEditing'
 import { Leaf, BookOpen, Refrigerator, ShoppingBasket, Plus, Search, ArrowUpRight, Clock3, Users, X, Check, Link, Pencil, Trash2, ArrowRight, ChefHat, Download, CircleHelp } from 'lucide-vue-next'
 const page=ref('recipes'), recipes=ref([]), query=ref(''), activeTags=ref([]), catalog=ref({groups:[],tags:[]}), tagManager=ref(false), selected=ref([]), detail=ref(null), editor=ref(null), importer=ref(false), url=ref(''), busy=ref(false), notice=ref(''), error=ref(''), shopping=ref([]), have=ref(''), staples=ref('盐、油'), matches=ref([]), matched=ref(false), done=ref({})
+const user=ref(null), authReady=ref(false)
 const nav=[['recipes','我的食谱',BookOpen],['pantry','冰箱里有什么',Refrigerator],['shopping','采购清单',ShoppingBasket]]
 watch(page,()=>window.scrollTo({top:0}))
 const filterGroups=computed(()=>catalog.value.groups.map(g=>({...g,tags:catalog.value.tags.filter(t=>t.group_id===g.id)})).filter(g=>g.tags.length))
@@ -14,7 +16,13 @@ const filtered=computed(()=>recipes.value.filter(r=>activeTags.value.every(id=>r
 const completed=computed(()=>shopping.value.filter(i=>i.checked).length)
 function flash(msg){notice.value=msg;setTimeout(()=>notice.value='',3500)}
 async function load(){const [rows,tags]=await Promise.all([api('/recipes'),api('/tags')]);recipes.value=rows;catalog.value=tags;activeTags.value=activeTags.value.filter(id=>tags.tags.some(t=>t.id===id));if(detail.value)detail.value=rows.find(r=>r.id===detail.value.id)||null}
-onMounted(async()=>{try{await load();shopping.value=await api('/shopping');const s=await api('/settings');have.value=s.ingredients.join('、');staples.value=s.staples.join('、')}catch(e){error.value=e.message}})
+async function start(){try{await load();shopping.value=await api('/shopping');const s=await api('/settings');have.value=s.ingredients.join('、');staples.value=s.staples.join('、')}catch(e){error.value=e.message}}
+function leave(){user.value=null;recipes.value=[];catalog.value={groups:[],tags:[]};shopping.value=[];selected.value=[];detail.value=null;editor.value=null;tagManager.value=false;importer.value=false;matches.value=[];matched.value=false;error.value='';activeTags.value=[];query.value=''}
+function authenticated(data){user.value=data.user;start()}
+async function boot(){if(!getToken()){authReady.value=true;return}try{user.value=await api('/auth/me')}catch{clearToken()}authReady.value=true;if(user.value)await start()}
+async function signOut(){try{await api('/auth/logout','POST')}catch{}clearToken();leave()}
+onUnauthorized(leave)
+onMounted(boot)
 function sourceLabel(recipe){return recipe.source.platform==='xiaohongshu'?'小红书':recipe.source.platform==='douguo'?'豆果美食':recipe.source.author==='食拾示例'?'内置示例':'手动录入'}
 function edit(r){editor.value=JSON.parse(JSON.stringify(r||blankRecipe()));detail.value=null;error.value=''}
 async function importLink(){busy.value=true;error.value='';try{editor.value=await api('/imports','POST',{url:url.value});importer.value=false;flash('已提取，请核对材料和步骤后保存')}catch(e){error.value=e.message}finally{busy.value=false}}
@@ -29,16 +37,18 @@ function exportList(){const text=shopping.value.map(i=>`${i.checked?'☑':'☐'}
 </script>
 
 <template>
-<div class="layout" :class="{'has-selection':selected.length}">
+<div v-if="!authReady" class="auth-screen"><span class="muted">正在恢复会话…</span></div>
+<LoginView v-else-if="!user" @authenticated="authenticated"/>
+<div v-else class="layout" :class="{'has-selection':selected.length}">
   <aside class="sidebar">
     <a class="brand" href="#" @click.prevent="page='recipes'"><span class="brand-symbol"><Leaf :size="25"/></span><span>食拾<small>SHI SHI</small></span></a>
     <p class="sidebar-label">我的厨房</p>
     <nav aria-label="厨房导航"><button v-for="[id,label,icon] in nav" :key="id" :class="{active:page===id}" :aria-current="page===id?'page':undefined" @click="page=id;error='' "><component :is="icon" :size="19"/>{{label}}<span v-if="id==='recipes'" class="nav-count">{{recipes.length}}</span><span v-if="id==='shopping'&&shopping.length" class="nav-dot"></span></button></nav>
     <div class="sidebar-note"><span>一餐一饭，好好生活。</span><p>把散落的好味道，<br>收进自己的小厨房。</p><Leaf :size="40" stroke-width="1"/></div>
-    <div class="profile"><span class="avatar">拾</span><div>我的本地厨房<small><i></i> 数据保存在本机</small></div><span class="version">v0.1</span></div>
+    <div class="profile"><span class="avatar">{{user.username.slice(0,1)}}</span><div>{{user.username}}<small><i></i> 已登录 · 数据保存在本机</small></div><button class="text-button" @click="signOut">退出</button></div>
   </aside>
   <main>
-    <header class="topbar"><span>我的厨房 <span class="slash">/</span> {{nav.find(n=>n[0]===page)?.[1]}}</span><span class="top-tip"><Leaf :size="14"/> 每一份收藏，都是下一餐的灵感</span></header>
+    <header class="topbar"><span>我的厨房 <span class="slash">/</span> {{nav.find(n=>n[0]===page)?.[1]}}</span><span class="top-right"><span class="top-tip"><Leaf :size="14"/> 每一份收藏，都是下一餐的灵感</span><span class="top-account"><i></i>{{user.username}}<button class="text-button" @click="signOut">退出</button></span></span></header>
     <div class="content">
       <div v-if="error&&!editor&&!importer" class="alert" role="alert">{{error}}<button @click="error=''">×</button></div>
       <template v-if="page==='recipes'">
@@ -47,7 +57,7 @@ function exportList(){const text=shopping.value.map(i=>`${i.checked?'☑':'☐'}
         <section class="library-tools"><div class="section-title"><h2>收藏的好味道</h2><span>{{recipes.length}} 道食谱</span></div><label class="search"><Search :size="17"/><input v-model="query" placeholder="搜索菜名、食材或标签" aria-label="搜索食谱"/></label></section>
         <div class="filter-row"><span class="muted">已选 {{activeTags.length}} 个标签 · 同时满足</span><div class="library-actions"><button class="text-button" @click="tagManager=true">管理标签</button><button class="text-button" @click="edit()"><Plus :size="15"/>手动录入</button></div></div>
         <div class="filter-groups"><div v-for="group in filterGroups" :key="group.id" class="tag-choice-group"><strong>{{group.name}}</strong><div class="tag-options"><button v-for="tag in group.tags" :key="tag.id" :class="{chosen:activeTags.includes(tag.id)}" :aria-pressed="activeTags.includes(tag.id)" @click="toggleTag(tag.id)">{{tag.name}}</button></div></div><button v-if="activeTags.length" class="text-button" @click="activeTags=[]">清除标签筛选</button></div>
-        <div class="recipe-grid"><article v-for="(r,index) in filtered" :key="r.id" class="recipe-card" @click="detail=r"><div class="card-art" :class="'tone-'+(index%6)"><span class="food-emoji">{{r.emoji||'🍲'}}</span><span class="card-source">{{sourceLabel(r)}}</span><button class="select-recipe" :class="{checked:selected.includes(r.id)}" @click.stop="toggle(r.id)" :aria-label="'选择'+r.name"><Check v-if="selected.includes(r.id)" :size="16"/><Plus v-else :size="16"/></button></div><div class="card-body"><div class="card-title"><h3>{{r.name}}</h3><ArrowUpRight :size="17"/></div><p>{{r.ingredients.slice(0,3).map(i=>i.name).join(' · ')}}</p><div class="card-bottom"><span class="small-tag">{{r.tags.slice(0,2).map(t=>t.name).join(' · ')||'未分类'}}</span><span><Clock3 :size="13"/>{{r.minutes? r.minutes+' 分钟':'耗时未注明'}}</span></div></div></article><button class="add-card" @click="importer=true;error='' "><span><Plus :size="25"/></span><strong>收藏下一份美味</strong><p>收藏豆果与小红书里的做法</p></button></div>
+        <div class="recipe-grid"><article v-for="(r,index) in filtered" :key="r.id" class="recipe-card" @click="detail=r"><div class="card-art" :class="['tone-'+(index%6),{'has-cover':r.cover}]"><img v-if="r.cover" class="card-cover" :src="r.cover" :alt="r.name+'成品图'" loading="lazy"/><span v-else class="food-emoji">{{r.emoji||'🍲'}}</span><span class="card-source">{{sourceLabel(r)}}</span><button class="select-recipe" :class="{checked:selected.includes(r.id)}" @click.stop="toggle(r.id)" :aria-label="'选择'+r.name"><Check v-if="selected.includes(r.id)" :size="16"/><Plus v-else :size="16"/></button></div><div class="card-body"><div class="card-title"><h3>{{r.name}}</h3><ArrowUpRight :size="17"/></div><p>{{r.ingredients.slice(0,3).map(i=>i.name).join(' · ')}}</p><div class="card-bottom"><span class="small-tag">{{r.tags.slice(0,2).map(t=>t.name).join(' · ')||'未分类'}}</span><span><Clock3 :size="13"/>{{r.minutes? r.minutes+' 分钟':'耗时未注明'}}</span></div></div></article><button class="add-card" @click="importer=true;error='' "><span><Plus :size="25"/></span><strong>收藏下一份美味</strong><p>收藏豆果与小红书里的做法</p></button></div>
         <p v-if="!filtered.length" class="empty">还没有匹配的食谱，换个关键词或收藏一道新菜吧。</p>
         <footer class="page-footer"><span><Leaf :size="14"/> 认真做饭，也是认真生活。</span><span>食拾 · 你的个人食谱手帐</span></footer>
       </template>
@@ -63,3 +73,19 @@ function exportList(){const text=shopping.value.map(i=>`${i.checked?'☑':'☐'}
   <TagManager v-if="tagManager" :catalog="catalog" @close="tagManager=false" @changed="load"/>
 </div>
 </template>
+<style>
+.top-right{display:flex;align-items:center;gap:18px}
+.top-account{display:flex;align-items:center;gap:8px;font-size:11px;color:#5d6f5f}
+.top-account i{display:inline-block;width:6px;height:6px;background:#73976b;border-radius:50%}
+.top-account .text-button{padding:2px 0;font-size:10px;color:#8b9a86}
+.profile{flex-wrap:wrap}
+.profile .text-button{padding:0;font-size:9px;color:#9aa18e}
+.auth-screen{min-height:100vh;display:grid;place-items:center;background:#f8f9f5}
+.card-art.has-cover{background:#e9ece2}
+.card-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
+.card-art.has-cover .card-source{z-index:3}
+.card-art.has-cover .select-recipe{z-index:4}
+.detail-cover{height:210px;border-radius:10px;overflow:hidden;margin-bottom:24px;background:#edf0e3}
+.detail-cover img{width:100%;height:100%;object-fit:cover;display:block}
+@media(max-width:650px){.top-account{display:none}}
+</style>

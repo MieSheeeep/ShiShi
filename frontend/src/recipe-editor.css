@@ -61,3 +61,10 @@
  .new-tag-row input { flex-basis:40%; }
  .editor-footer .secondary,.editor-footer .primary { padding:12px 10px; font-size:11px; }
 }
+/* Recipe cover picker: upload a real dish photo or reuse an existing image. */
+.cover-field { margin: 4px 0 22px; }
+.cover-preview { height: 180px; border-radius: 10px; overflow: hidden; background: #eef1e7; display: grid; place-items: center; color: #98a08e; font-size: 11px; text-align: center; padding: 12px; }
+.cover-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cover-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 12px 0 0; }
+.cover-actions .secondary { padding: 8px 12px; font-size: 11px; }
+.cover-picker { margin-top: 12px; }

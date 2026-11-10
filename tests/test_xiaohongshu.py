@@ -105,6 +105,8 @@ def test_import_save_reload_and_duplicate_note(tmp_path,monkeypatch):
     transport=httpx.MockTransport(lambda req:httpx.Response(200,text=page()))
     monkeypatch.setattr(module,'fetch_recipe',lambda url:fetch_xiaohongshu(url,transport=transport))
     with TestClient(module.app) as c:
+        token=c.post('/api/auth/register',json={'username':'tester','password':'shishi123'}).json()['token']
+        c.headers.update({'Authorization':'Bearer '+token})
         draft=c.post('/api/imports',json={'url':'分享笔记 '+URL+'?xsec_token=demo'}).json()
         assert draft['source']['original_text']==DESC
         saved=c.post('/api/recipes',json=draft)

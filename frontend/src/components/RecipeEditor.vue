@@ -3,11 +3,11 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { X, Plus, Check, Trash2, ImagePlus, RotateCcw } from 'lucide-vue-next'
 import OrderButtons from './OrderButtons.vue'
 import TagPicker from './TagPicker.vue'
-import { moveItem, attachImage, newStep, newIngredient } from '../recipeEditing'
+import { moveItem, attachImage, newStep, newIngredient, api } from '../recipeEditing'
 const props=defineProps({recipe:Object,catalog:Object,busy:Boolean,error:String})
 const emit=defineEmits(['cancel','save','catalog-change','manage-tags'])
 const copy=value=>JSON.parse(JSON.stringify(value))
-const model=ref(copy(props.recipe)),initial=JSON.stringify(props.recipe),picking=ref(null)
+const model=ref(copy(props.recipe)),initial=JSON.stringify(props.recipe),picking=ref(null),pickingCover=ref(false),uploadError=ref('')
 const dirty=computed(()=>JSON.stringify(model.value)!==initial)
 const snapshot=computed(()=>model.value.original_snapshot?.recipe)
 const availableImages=computed(()=>[...new Set([
@@ -20,6 +20,14 @@ function reset(){if(confirm('恢复到本次打开编辑器时的内容？'))mod
 function removeStep(index){if(model.value.steps.length>1)model.value.steps.splice(index,1)}
 function toggleImage(step,url){const i=step.images.indexOf(url);if(i<0)attachImage(step,url);else step.images.splice(i,1)}
 function guard(event){if(dirty.value){event.preventDefault();event.returnValue=''}}
+async function uploadCover(event){
+  const file=event.target.files?.[0];if(!file)return
+  uploadError.value=''
+  const form=new FormData();form.append('file',file)
+  try{model.value.cover=(await api('/media','POST',form)).url}
+  catch(e){uploadError.value=e.message}
+  event.target.value=''
+}
 onMounted(()=>window.addEventListener('beforeunload',guard))
 onBeforeUnmount(()=>window.removeEventListener('beforeunload',guard))
 </script>
@@ -32,6 +40,13 @@ onBeforeUnmount(()=>window.removeEventListener('beforeunload',guard))
   <details v-if="model.source.original_text||snapshot" class="source-text"><summary>{{model.original_snapshot?.kind==='legacy_saved'?'查看迁移时保留的原始记录':'对照导入原文与原始记录'}}</summary><p v-if="model.source.original_text" class="original-body">{{model.source.original_text}}</p><template v-else-if="snapshot"><strong>{{snapshot.name}}</strong><p>{{snapshot.ingredients?.map(i=>i.name+' '+i.amount).join('；')}}</p><p v-for="(step,index) in snapshot.steps" :key="step.id">{{index+1}}. {{step.text}}</p></template><p class="muted">这里只用于对照，编辑不会覆盖这份记录。</p></details>
   <form @submit.prevent="emit('save',copy(model))">
     <div class="form-row"><label class="grow">菜名<input v-model="model.name" required maxlength="200"/></label><label class="emoji-field">图标<input v-model="model.emoji" maxlength="8"/></label></div>
+    <section class="cover-field">
+      <div class="edit-section-heading"><h3>封面图</h3><span class="muted">用这道菜的实物照片做封面</span></div>
+      <div class="cover-preview" :class="{empty:!model.cover}"><img v-if="model.cover" :src="model.cover" :alt="'封面预览'"/><span v-else>还没有封面，可上传或从原图中选择</span></div>
+      <div class="cover-actions"><label class="secondary upload-label"><ImagePlus :size="15"/>上传封面<input type="file" accept="image/jpeg,image/png,image/webp" hidden @change="uploadCover"/></label><button v-if="model.cover" type="button" class="text-button" @click="model.cover=''">移除封面</button><button v-if="availableImages.length" type="button" class="text-button" @click="pickingCover=!pickingCover">{{pickingCover?'收起原图':'从原图选择'}}</button></div>
+      <p v-if="uploadError" class="alert" role="alert">{{uploadError}}</p>
+      <div v-if="pickingCover" class="image-grid cover-picker"><button v-for="(url,index) in availableImages" :key="url" type="button" :class="{picked:model.cover===url}" :aria-label="'把原图'+(index+1)+'设为封面'" @click="model.cover=url"><img :src="url" :alt="'候选封面'+(index+1)" loading="lazy"/></button></div>
+    </section>
     <div class="form-row"><label>耗时（分钟）<input v-model="model.minutes" placeholder="未注明"/></label><label>份数<input v-model="model.servings" placeholder="未注明"/></label></div>
     <TagPicker v-model="model.tags" :catalog="catalog" @changed="emit('catalog-change')" @manage="emit('manage-tags')"/>
     <details class="source-text"><summary>来源信息</summary><label>作者<input v-model="model.source.author"/></label><label>来源链接<input v-model="model.source.url" placeholder="手动录入可留空"/></label></details>

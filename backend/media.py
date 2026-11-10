@@ -22,6 +22,26 @@ def image_url(value):
         raise ValueError('不支持的图片地址')
     return value
 
+def save_upload(body, directory=None):
+    """保存用户上传的封面图，按内容哈希命名并返回本地访问地址。"""
+    if not body:raise ValueError('请选择图片文件')
+    if len(body)>5_000_000:raise ValueError('图片不能超过 5 MB')
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter('error',Image.DecompressionBombWarning)
+            with Image.open(BytesIO(body)) as im:
+                if im.width*im.height>30_000_000:raise ValueError('图片尺寸过大')
+                extension={'JPEG':'jpg','PNG':'png','WEBP':'webp'}.get(im.format)
+                if not extension:raise ValueError('只支持 JPG、PNG 或 WEBP 图片')
+                im.verify()
+    except (OSError,Image.DecompressionBombWarning,Image.DecompressionBombError):
+        raise ValueError('无法识别这张图片，请换一张 JPG、PNG 或 WEBP 图片')
+    directory=Path(directory) if directory is not None else MEDIA_DIR
+    directory.mkdir(parents=True,exist_ok=True)
+    name=sha256(body).hexdigest()+'.'+extension
+    (directory/name).write_bytes(body)
+    return '/api/media/'+name
+
 def download_recipe_images(draft, *, transport=None, directory=None):
     directory=Path(directory) if directory is not None else MEDIA_DIR
     directory.mkdir(parents=True,exist_ok=True)

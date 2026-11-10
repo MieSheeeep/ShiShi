@@ -1,11 +1,21 @@
 import importlib
 from fastapi.testclient import TestClient
 
+
+def sign_in(client, username='tester', password='shishi123'):
+    """注册一个测试账号并把令牌挂到客户端，后续请求即为已登录状态。"""
+    response = client.post('/api/auth/register', json={'username': username, 'password': password})
+    assert response.status_code == 200
+    client.headers.update({'Authorization': 'Bearer ' + response.json()['token']})
+    return client
+
+
 def test_full_flow(tmp_path,monkeypatch):
     monkeypatch.setenv('SHISHI_DATABASE_URL','sqlite:///'+str(tmp_path/'test.db'))
     import backend.main as module
     module=importlib.reload(module)
     with TestClient(module.app) as c:
+        sign_in(c)
         assert len(c.get('/api/recipes').json()) == 6
         data={'name':'测试菜','source':'https://www.douguo.com/cookbook/123.html','ingredients':[{'name':'西红柿','amount':'2个'},{'name':'盐','amount':'适量'}],'steps':['切块','炒熟']}
         response=c.post('/api/recipes',json=data)
