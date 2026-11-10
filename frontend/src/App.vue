@@ -3,10 +3,11 @@ import { ref, computed, onMounted, watch } from 'vue'
 import RecipeEditor from './components/RecipeEditor.vue'
 import RecipeDetail from './components/RecipeDetail.vue'
 import TagManager from './components/TagManager.vue'
+import DailyFeature from './components/DailyFeature.vue'
 import { blankRecipe, api } from './recipeEditing'
 import { Leaf, BookOpen, Refrigerator, ShoppingBasket, Plus, Search, ArrowUpRight, Clock3, Users, X, Check, Link, Pencil, Trash2, ArrowRight, ChefHat, Download, CircleHelp } from 'lucide-vue-next'
 const page=ref('recipes'), recipes=ref([]), query=ref(''), activeTags=ref([]), catalog=ref({groups:[],tags:[]}), tagManager=ref(false), selected=ref([]), detail=ref(null), editor=ref(null), importer=ref(false), url=ref(''), busy=ref(false), notice=ref(''), error=ref(''), shopping=ref([]), have=ref(''), staples=ref('盐、油'), matches=ref([]), matched=ref(false), done=ref({})
-const nav=[['recipes','我的食谱',BookOpen],['pantry','冰箱里有什么',Refrigerator],['shopping','采购清单',ShoppingBasket]]
+const nav=[['recipes','首页',BookOpen],['pantry','冰箱里有什么',Refrigerator],['shopping','采购清单',ShoppingBasket]]
 watch(page,()=>window.scrollTo({top:0}))
 const filterGroups=computed(()=>catalog.value.groups.map(g=>({...g,tags:catalog.value.tags.filter(t=>t.group_id===g.id)})).filter(g=>g.tags.length))
 function toggleTag(id){activeTags.value=activeTags.value.includes(id)?activeTags.value.filter(t=>t!==id):[...activeTags.value,id]}
@@ -15,7 +16,7 @@ const completed=computed(()=>shopping.value.filter(i=>i.checked).length)
 function flash(msg){notice.value=msg;setTimeout(()=>notice.value='',3500)}
 async function load(){const [rows,tags]=await Promise.all([api('/recipes'),api('/tags')]);recipes.value=rows;catalog.value=tags;activeTags.value=activeTags.value.filter(id=>tags.tags.some(t=>t.id===id));if(detail.value)detail.value=rows.find(r=>r.id===detail.value.id)||null}
 onMounted(async()=>{try{await load();shopping.value=await api('/shopping');const s=await api('/settings');have.value=s.ingredients.join('、');staples.value=s.staples.join('、')}catch(e){error.value=e.message}})
-function sourceLabel(recipe){return recipe.source.platform==='xiaohongshu'?'小红书':recipe.source.platform==='douguo'?'豆果美食':recipe.source.author==='食拾示例'?'内置示例':'手动录入'}
+function sourceLabel(recipe){return recipe.source.platform==='xiaohongshu'?'小红书':recipe.source.platform==='douguo'?'豆果美食':recipe.source.author==='食拾示例'?'内置示例':recipe.source.author==='食拾精选'?'食拾精选':'手动录入'}
 function edit(r){editor.value=JSON.parse(JSON.stringify(r||blankRecipe()));detail.value=null;error.value=''}
 async function importLink(){busy.value=true;error.value='';try{editor.value=await api('/imports','POST',{url:url.value});importer.value=false;flash('已提取，请核对材料和步骤后保存')}catch(e){error.value=e.message}finally{busy.value=false}}
 async function save(value){busy.value=true;error.value='';try{const r=value||editor.value;await api('/recipes'+(r.id?'/'+r.id:''),r.id?'PUT':'POST',r);editor.value=null;await load();matched.value=false;flash('已保存到我的食谱')}catch(e){error.value=e.message}finally{busy.value=false}}
@@ -42,8 +43,8 @@ function exportList(){const text=shopping.value.map(i=>`${i.checked?'☑':'☐'}
     <div class="content">
       <div v-if="error&&!editor&&!importer" class="alert" role="alert">{{error}}<button @click="error=''">×</button></div>
       <template v-if="page==='recipes'">
-        <section class="page-heading"><div><div class="eyebrow">YOUR PERSONAL COOKBOOK</div><h1>我的食谱<span class="title-dot">.</span></h1><p>收集喜欢的味道，让每一餐都有灵感。</p></div><button class="primary" @click="importer=true;error='' "><Plus :size="18"/> 导入食谱</button></section>
-        <section class="hero"><div><span class="hero-kicker">从收藏，到餐桌</span><h2>今天，也好好吃饭。</h2><p>一条链接，留住心动的做法。<br>把想吃的菜，慢慢变成拿手菜。</p><button @click="page='pantry'">看看现有食材能做什么 <ArrowRight :size="16"/></button></div><div class="hero-art" aria-hidden="true"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><span class="herb herb-a">✦</span><span class="herb herb-b">✳</span><div class="plate"><div class="dish">🥗</div></div><span class="floating-label"><Leaf :size="15"/> 用手边食材，做一顿喜欢的饭</span></div><span class="hero-number">01 / DAILY INSPIRATION</span></section>
+        <section class="page-heading"><div><div class="eyebrow">A TASTE OF EVERYDAY</div><h1>今天，吃点好的<span class="title-dot">。</span></h1><p>顺着时令，发现一道好味道。</p></div><button class="primary" @click="importer=true;error='' "><Plus :size="18"/> 导入食谱</button></section>
+        <DailyFeature @collect="edit"/>
         <section class="library-tools"><div class="section-title"><h2>收藏的好味道</h2><span>{{recipes.length}} 道食谱</span></div><label class="search"><Search :size="17"/><input v-model="query" placeholder="搜索菜名、食材或标签" aria-label="搜索食谱"/></label></section>
         <div class="filter-row"><span class="muted">已选 {{activeTags.length}} 个标签 · 同时满足</span><div class="library-actions"><button class="text-button" @click="tagManager=true">管理标签</button><button class="text-button" @click="edit()"><Plus :size="15"/>手动录入</button></div></div>
         <div class="filter-groups"><div v-for="group in filterGroups" :key="group.id" class="tag-choice-group"><strong>{{group.name}}</strong><div class="tag-options"><button v-for="tag in group.tags" :key="tag.id" :class="{chosen:activeTags.includes(tag.id)}" :aria-pressed="activeTags.includes(tag.id)" @click="toggleTag(tag.id)">{{tag.name}}</button></div></div><button v-if="activeTags.length" class="text-button" @click="activeTags=[]">清除标签筛选</button></div>

@@ -1,0 +1,71 @@
+/* Shared palette: pine, warm paper, ink and restrained vermilion. */
+:root {
+  --green:#263f35; --green-hover:#1a3027; --paper:#f5f1e8;
+  --surface:#fffcf5; --ink:#292823; --muted:#756e63; --border:#d8d0c2;
+  --accent:#984b3f; --soft:#eae5d9;
+  color:var(--ink); background:var(--paper);
+}
+.sidebar,.recipe-card,.modal,.pantry-form,.shopping-panel,.match-item { background:var(--surface); border-color:var(--border); }
+.topbar { background:var(--paper); color:var(--muted); }
+.brand,.page-heading h1,.section-title h2,.card-title h3,.modal h2,.match-item h3 { color:var(--green); }
+.brand-symbol { background:var(--green); }
+.sidebar nav button { color:#68685c; }
+.sidebar nav button.active { background:var(--green); color:var(--surface); }
+.sidebar nav button:not(.active):hover { background:var(--soft); }
+.sidebar .nav-count { background:#ffffff1f; color:inherit; }
+.sidebar-note { background:#eee9de; border-color:var(--border); color:#545d50; }
+.sidebar-note p { color:#736f62; }
+.brand small,.sidebar-label,.profile small,.version,.top-tip,.eyebrow,.page-heading p,
+.section-title>span,.card-body>p,.card-bottom,.page-footer,.muted,.modal label,.detail-meta,
+.ingredient-line strong,.ingredient-line small,.shopping-heading>span,.shopping-row details,
+.empty-panel,.empty-panel p,.empty,.add-card p,.import-note { color:var(--muted); }
+.eyebrow { letter-spacing:2px; }
+.title-dot { color:var(--accent); margin-left:0; }
+.primary { background:var(--green); box-shadow:none; }
+.primary:hover { background:var(--green-hover); }
+.secondary,.search,input,textarea,select { background:var(--surface); border-color:var(--border); color:var(--ink); }
+.secondary:hover { background:#eee9de; }
+input::placeholder,textarea::placeholder { color:#827a6d; }
+input:focus,textarea:focus,select:focus { border-color:var(--green); box-shadow:0 0 0 3px #263f3510; }
+.text-button,.icon-button,.cooking-step p { color:#45594c; }
+.search input { background:transparent; }
+.recipe-card { box-shadow:0 2px 3px #29282303; }
+.recipe-card:hover { box-shadow:0 8px 22px #2928230c; }
+.card-art { background:#e8ddcf; }
+.card-art.tone-1 { background:#dedfcd; }
+.card-art.tone-2 { background:#ead9c5; }
+.card-art.tone-3 { background:#dce0d6; }
+.card-art.tone-4 { background:#e3ddcb; }
+.card-art.tone-5 { background:#e3d6c8; }
+.card-source { background:#fffcf5ed; color:#665f50; }
+.small-tag,.selected-tag { background:#e9e8dd; color:#405747; }
+.tag-options button { background:var(--surface); border-color:var(--border); color:#645f53; }
+.tag-options button.chosen { background:var(--green); color:var(--surface); border-color:var(--green); }
+.tag-choice-group,.filter-groups .tag-choice-group { border-color:#ded7c9; }
+.filter-groups .tag-choice-group>strong,.tag-choice-group>strong { color:#615f51; }
+.tag-manager input,.tag-manager select { background:var(--surface); }
+.add-card,.empty-panel { border-color:#c9bdab; color:#52624f; }
+.add-card>span,.detail-emoji,.match-emoji { background:var(--soft); }
+.add-card:hover { background:#eee8dc; }
+.order-buttons button { color:var(--green); border-color:var(--border); background:var(--surface); }
+.editable-step { background:var(--surface); border-color:var(--border); }
+.editable-step-heading strong,.step-number { color:#52634e; }
+.editable-picture { background:#eee9df; }
+.editor-footer { background:#fffcf5f5; }
+.recipe-note,.source-text,.edition-reason { background:#eee9df; color:#5e6153; }
+.source-text summary { color:var(--green); }
+.modal-icon { background:#e9e8dd; color:var(--green); }
+.progress { background:#e4decf; }
+.progress span { background:var(--green); }
+.match-item p.available { color:#36543d; }
+.match-item p { color:#80553f; }
+.toast,.selection-bar { background:var(--green); color:var(--surface); }
+.selection-bar .text-button { color:#e0d8c8; }
+.selection-bar .primary { background:var(--surface); color:var(--green); }
+.selection-bar strong { color:var(--surface); }
+.profile i { background:#526e50; }
+.danger { color:#984b3f; }
+@media(max-width:768px) {
+  .sidebar nav { background:var(--surface); border-color:var(--border); }
+  .sidebar nav button.active { background:var(--green); color:var(--surface); }
+}

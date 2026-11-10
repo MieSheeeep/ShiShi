@@ -3,6 +3,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import uuid4
 import re
+from pathlib import Path
 from pydantic import BaseModel, Field, field_validator, model_validator
 from backend.source_urls import canonical_url
 
@@ -10,7 +11,11 @@ def now(): return datetime.now(timezone.utc).isoformat()
 def new_id(): return uuid4().hex
 
 def local_images(urls):
-    if len(urls)>48 or any(not re.fullmatch(r'/api/media/[a-f0-9]{64}\.(?:jpg|png|webp|gif)',u) for u in urls):
+    def allowed(url):
+        if re.fullmatch(r'/api/media/[a-f0-9]{64}\.(?:jpg|png|webp|gif)',url):return True
+        editorial=re.fullmatch(r'/editorial/([a-z0-9-]+\.(?:png|webp|jpg))',url)
+        return bool(editorial and (Path(__file__).resolve().parents[1]/'frontend'/'public'/'editorial'/editorial[1]).is_file())
+    if len(urls)>48 or any(not allowed(u) for u in urls):
         raise ValueError('图片必须是食拾已保存的本地图片')
     return urls
 
