@@ -17,7 +17,9 @@ def test_merge_units_and_uncertain():
 
 def test_url_restricted():
     assert canonical_url('https://www.douguo.com/cookbook/123.html?from=x').endswith('/123.html')
-    for url in ['http://127.0.0.1/a','https://www.douguo.com.evil.com/cookbook/1.html','https://www.douguo.com/user/1']:
+    assert canonical_url('https://www.douguo.net/cookbook/123.html?from=x') == 'https://www.douguo.com/cookbook/123.html'
+    assert canonical_url('https://m.douguo.net/cookbook/123.html') == 'https://www.douguo.com/cookbook/123.html'
+    for url in ['http://127.0.0.1/a','https://www.douguo.com.evil.com/cookbook/1.html','https://www.douguo.net.evil.com/cookbook/1.html','https://www.douguo.com/user/1']:
         with pytest.raises(ValueError): canonical_url(url)
 
 def test_no_invented_recipe():
