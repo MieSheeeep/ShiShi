@@ -12,6 +12,9 @@ from backend import auth
 from backend.recipe_schema import Recipe, first_picture, now, new_id, snapshot
 from backend.seed import examples
 
+SEASON_GROUP = '四季'
+SEASONS = ('春天', '夏天', '秋天', '冬天')
+
 
 def _columns(engine, table):
     inspector = inspect(engine)
@@ -123,6 +126,25 @@ def initialize(engine, seed=True):
             body['tag_ids'] = tag_ids(db, body.pop('tags'), None)
             db.execute(text('UPDATE recipes SET body=:body WHERE id=:id'), {'id': rid, 'body': json.dumps(body, ensure_ascii=False)})
     backfill_demo_covers(engine)
+    backfill_season_tags(engine)
+
+
+def backfill_season_tags(engine):
+    """为已有账号补上四季分组，并给内置演示食谱补四季标签。"""
+    seasons = {item['name']: next(c['name'] for c in item['tags'] if c.get('group') == SEASON_GROUP) for item in examples()}
+    with engine.begin() as db:
+        users = [row['user_id'] for row in db.execute(text('SELECT DISTINCT user_id FROM tag_groups WHERE user_id IS NOT NULL')).mappings()]
+        for user_id in users:
+            group = _group(db, SEASON_GROUP, user_id)
+            ids = {name: _tag(db, group['id'], name, user_id)['id'] for name in SEASONS}
+            for row in db.execute(text('SELECT id,body FROM recipes WHERE user_id=:user_id'), {'user_id': user_id}).all():
+                body = json.loads(row.body)
+                if body.get('source', {}).get('author') != '食拾示例':
+                    continue
+                tid = ids.get(seasons.get(body.get('name')))
+                if tid and tid not in body.get('tag_ids', []):
+                    body['tag_ids'] = body.get('tag_ids', []) + [tid]
+                    db.execute(text('UPDATE recipes SET body=:body WHERE id=:id'), {'id': row.id, 'body': json.dumps(body, ensure_ascii=False)})
 
 
 def backfill_demo_covers(engine):
@@ -172,8 +194,11 @@ def bootstrap_user(engine, user_id):
     """注册成功后准备默认分组与演示食谱；认领到旧数据的账号不再重复导入。"""
     claimed = claim_legacy(engine, user_id)
     with engine.begin() as db:
-        for name in ('我的分类', '厨具', '口味'):
-            _group(db, name, user_id)
+        for name in ('我的分类', '厨具', '口味', SEASON_GROUP):
+            group = _group(db, name, user_id)
+            if name == SEASON_GROUP:
+                for season in SEASONS:
+                    _tag(db, group['id'], season, user_id)
     if not claimed:
         seed_user(engine, user_id)
 
