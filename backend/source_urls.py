@@ -21,7 +21,7 @@ def canonical_url(value):
     p = urlsplit(value)
     if p.scheme not in ('http', 'https') or p.username or p.password or p.port not in (None, 80, 443):
         raise ValueError('请使用受支持平台的 HTTP/HTTPS 链接')
-    if p.hostname in ('www.douguo.com', 'douguo.com') and re.fullmatch(r'/cookbook/\d+\.html', p.path):
+    if p.hostname in ('www.douguo.com', 'douguo.com', 'www.douguo.net', 'm.douguo.net') and re.fullmatch(r'/cookbook/\d+\.html', p.path):
         return 'https://www.douguo.com' + p.path
     if p.hostname in ('www.xiaohongshu.com', 'xiaohongshu.com'):
         match = re.fullmatch(r'/(?:explore|discovery/item)/([a-fA-F0-9]{24})/?', p.path)

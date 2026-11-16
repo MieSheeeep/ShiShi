@@ -106,3 +106,14 @@ def test_duplicate_step_ids_and_empty_steps_rejected(tmp_path,monkeypatch):
         assert c.put('/api/recipes/'+str(r['id']),json=r).status_code==422
         r['steps']=[{'id':'s1','text':'  ','images':[]}]
         assert c.put('/api/recipes/'+str(r['id']),json=r).status_code==422
+
+def test_seasons_group_and_demo_recipe_tags(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    tags=c.get('/api/tags').json()
+    group=next(g for g in tags['groups'] if g['name']=='四季')
+    assert [t['name'] for t in tags['tags'] if t['group_id']==group['id']]==['春天','夏天','秋天','冬天']
+    rows=c.get('/api/recipes').json()
+    tomato=next(r for r in rows if r['name']=='番茄炒蛋')
+    assert {t['name'] for t in tomato['tags']}=={'快手菜','夏天'}
+    porridge=next(r for r in rows if r['name']=='南瓜小米粥')
+    assert any(t['name']=='秋天' for t in porridge['tags'])
