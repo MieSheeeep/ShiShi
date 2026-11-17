@@ -34,23 +34,25 @@ def _create_tables(db):
     db.execute(text('CREATE TABLE IF NOT EXISTS tags (id TEXT PRIMARY KEY,group_id TEXT NOT NULL,name TEXT NOT NULL,UNIQUE(group_id,name))'))
     db.execute(text('CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY,body TEXT NOT NULL)'))
     db.execute(text('CREATE TABLE IF NOT EXISTS shopping (user_id INTEGER PRIMARY KEY,body TEXT NOT NULL)'))
+    db.execute(text('CREATE TABLE IF NOT EXISTS meal_plan (user_id INTEGER NOT NULL,week TEXT NOT NULL,body TEXT NOT NULL,updated_at TEXT NOT NULL,PRIMARY KEY(user_id,week))'))
 
 
 def _rebuild_single_user_tables(engine):
-    """把旧版全局唯一的表改成按用户唯一，并补上 user_id 列。"""
-    if 'user_id' not in _columns(engine, 'recipes'):
+    """把旧版全局唯一的表改成按用户唯一，并补上 user_id 列。全新数据库没有旧表时直接跳过。"""
+    inspector = inspect(engine)
+    if inspector.has_table('recipes') and 'user_id' not in _columns(engine, 'recipes'):
         with engine.begin() as db:
             db.execute(text('ALTER TABLE recipes RENAME TO recipes_single_user'))
             db.execute(text('CREATE TABLE recipes (id INTEGER PRIMARY KEY,user_id INTEGER,source TEXT,body TEXT NOT NULL,UNIQUE(user_id,source))'))
             db.execute(text('INSERT INTO recipes(id,user_id,source,body) SELECT id,NULL,source,body FROM recipes_single_user'))
             db.execute(text('DROP TABLE recipes_single_user'))
-    if 'user_id' not in _columns(engine, 'tag_groups'):
+    if inspector.has_table('tag_groups') and 'user_id' not in _columns(engine, 'tag_groups'):
         with engine.begin() as db:
             db.execute(text('ALTER TABLE tag_groups RENAME TO tag_groups_single_user'))
             db.execute(text('CREATE TABLE tag_groups (id TEXT PRIMARY KEY,user_id INTEGER,name TEXT NOT NULL,UNIQUE(user_id,name))'))
             db.execute(text('INSERT INTO tag_groups(id,user_id,name) SELECT id,NULL,name FROM tag_groups_single_user'))
             db.execute(text('DROP TABLE tag_groups_single_user'))
-    if 'user_id' not in _columns(engine, 'shopping'):
+    if inspector.has_table('shopping') and 'user_id' not in _columns(engine, 'shopping'):
         with engine.begin() as db:
             old = db.execute(text('SELECT body FROM shopping WHERE id=1')).first()
             db.execute(text('DROP TABLE shopping'))
@@ -408,6 +410,19 @@ def save_xhs_cookie(engine, user_id, cookie):
             db.execute(text('DELETE FROM settings WHERE key=:key'), {'key': f'{user_id}:xhs'})
 
 
+def read_plan(engine, user_id, week):
+    """读取某一周（周一日期为键）的饮食计划，没有则返回 None。"""
+    with engine.connect() as db:
+        row = db.execute(text('SELECT body FROM meal_plan WHERE user_id=:user_id AND week=:week'), {'user_id': user_id, 'week': week}).first()
+    return json.loads(row.body) if row else None
+
+
+def save_plan(engine, user_id, week, body):
+    """覆盖保存某一周的饮食计划。"""
+    with engine.begin() as db:
+        db.execute(text('INSERT INTO meal_plan(user_id,week,body,updated_at) VALUES(:user_id,:week,:body,:updated_at) ON CONFLICT(user_id,week) DO UPDATE SET body=excluded.body, updated_at=excluded.updated_at'), {'user_id': user_id, 'week': week, 'body': json.dumps(body, ensure_ascii=False), 'updated_at': now()})
+
+
 def purge_user(engine, user_id):
     """永久删除账号及其食谱、标签、清单、设置与会话。"""
     with engine.begin() as db:
@@ -417,6 +432,7 @@ def purge_user(engine, user_id):
         db.execute(text('DELETE FROM tag_groups WHERE user_id=:user'), {'user': user_id})
         db.execute(text('DELETE FROM recipes WHERE user_id=:user'), {'user': user_id})
         db.execute(text('DELETE FROM shopping WHERE user_id=:user'), {'user': user_id})
+        db.execute(text('DELETE FROM meal_plan WHERE user_id=:user'), {'user': user_id})
         db.execute(text('DELETE FROM settings WHERE key LIKE :prefix'), {'prefix': f'{user_id}:%'})
         db.execute(text('DELETE FROM sessions WHERE user_id=:user'), {'user': user_id})
         db.execute(text('DELETE FROM users WHERE id=:user'), {'user': user_id})

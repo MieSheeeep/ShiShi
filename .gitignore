@@ -1,4 +1,6 @@
 .venv/
+_runtime/
+pip-*/
 __pycache__/
 .pytest_cache/
 node_modules/

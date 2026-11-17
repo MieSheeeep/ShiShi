@@ -10,9 +10,9 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Upload
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 import httpx
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 
-from backend import ai_recipe, auth, douguo_search, recipe_store as store
+from backend import ai_recipe, auth, douguo_search, meal_plan, recipe_store as store
 from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
@@ -24,6 +24,14 @@ DATA = ROOT / 'data'
 DEMO_DIR = Path(__file__).resolve().parent / 'demo_images'
 DATA.mkdir(exist_ok=True)
 engine = create_engine(os.getenv('SHISHI_DATABASE_URL', f'sqlite:///{DATA / "shishi.db"}'), connect_args={'check_same_thread': False})
+
+
+@event.listens_for(engine, 'connect')
+def configure_sqlite(dbapi_connection, _connection_record):
+    # 当前 Windows 环境的文件 journal 会使提交不可见，本地运行改用内存 journal。
+    dbapi_connection.execute('PRAGMA journal_mode=MEMORY')
+
+
 store.initialize(engine)
 app = FastAPI(title='食拾 · 个人食谱管理', description='账号登录后管理自己的食谱、标签、常备食材与采购清单。')
 
@@ -66,6 +74,12 @@ class Selection(BaseModel):
     ids: list[int] = Field(min_length=1)
 class Shopping(BaseModel):
     items: list[dict]
+class MealPlanBody(BaseModel):
+    week: str = Field(min_length=10, max_length=10)
+    days: list[dict]
+class MealPlanGenerate(BaseModel):
+    week: str = Field(min_length=10, max_length=10)
+    preferences: list[str] = []
 class NamedItem(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 class NewTag(NamedItem):
@@ -460,6 +474,37 @@ def set_shopping(body: Shopping, user: dict = Depends(current_user)):
     return {'ok': True}
 
 
+@app.get('/api/meal-plan')
+def get_meal_plan(week: str = Query(min_length=10, max_length=10), user: dict = Depends(current_user)):
+    return store.read_plan(engine, user['id'], week) or meal_plan.empty_plan(week)
+
+
+@app.put('/api/meal-plan')
+def set_meal_plan(body: MealPlanBody, user: dict = Depends(current_user)):
+    store.save_plan(engine, user['id'], body.week, {'week': body.week, 'days': body.days})
+    return {'ok': True}
+
+
+@app.post('/api/meal-plan/generate')
+def generate_meal_plan(body: MealPlanGenerate, user: dict = Depends(current_user)):
+    recipes = store.list_recipes(engine, user['id'])
+    settings = store.read_settings(engine, user['id'])
+    plan = meal_plan.generate_plan(body.week, recipes, settings)
+    store.save_plan(engine, user['id'], body.week, plan)
+    return plan
+
+
+@app.post('/api/meal-plan/shopping')
+def meal_plan_shopping(body: Selection, user: dict = Depends(current_user)):
+    recipes = [recipe for recipe in store.list_recipes(engine, user['id']) if recipe['id'] in body.ids]
+    if len(recipes) != len(set(body.ids)):
+        raise HTTPException(404, '部分食谱不存在，请重新选择')
+    settings = store.read_settings(engine, user['id'])
+    items = meal_plan.build_shopping_items(recipes, settings)
+    store.save_list(engine, user['id'], items)
+    return items
+
+
 @app.get('/api/settings')
 def settings(user: dict = Depends(current_user)):
     return store.read_settings(engine, user['id'])
@@ -475,6 +520,6 @@ MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 app.mount('/api/media', StaticFiles(directory=MEDIA_DIR), name='recipe-media')
 DEMO_DIR.mkdir(parents=True, exist_ok=True)
 app.mount('/api/demo', StaticFiles(directory=DEMO_DIR), name='demo-media')
-dist = ROOT / 'frontend' / 'dist'
+dist = ROOT / '_runtime' / 'frontend-dist'
 if dist.exists():
     app.mount('/', StaticFiles(directory=dist, html=True), name='frontend')

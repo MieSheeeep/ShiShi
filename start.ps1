@@ -1,4 +1,7 @@
 $ErrorActionPreference = 'Stop'
+$env:TMP = Join-Path $PSScriptRoot '_runtime\tmp'
+$env:TEMP = $env:TMP
+New-Item -ItemType Directory -Force -Path $env:TMP | Out-Null
 Set-Location -LiteralPath $PSScriptRoot
 if (!(Test-Path -LiteralPath '.venv\Scripts\python.exe')) {
     python -m venv .venv
