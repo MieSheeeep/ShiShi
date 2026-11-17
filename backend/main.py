@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import create_engine
 
 from backend import auth, douguo_search, recipe_store as store
-from backend.core import canonical_url, merge_ingredients, normalize
+from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
 from backend.recipe_schema import Recipe, draft_v2
@@ -261,7 +261,23 @@ def create_shopping(body: Selection, user: dict = Depends(current_user)):
     rows = [recipe for recipe in store.list_recipes(engine, user['id']) if recipe['id'] in body.ids]
     if len(rows) != len(set(body.ids)):
         raise HTTPException(404, '部分食谱不存在，请重新选择')
+    settings = store.read_settings(engine, user['id'])
+    pantry = {}
+    for key in ('ingredients', 'staples'):
+        for item in settings.get(key, []):
+            raw = f"{item.get('amount', '')}{item.get('unit', '')}".strip()
+            pantry.setdefault(normalize(item['name']), []).append(quantity(raw) if raw else None)
     items = merge_ingredients(rows)
+    for item in items:
+        entries = pantry.get(item['name'])
+        if not entries:
+            continue
+        short = pantry_shortfall(item['amount'], entries)
+        if short is None:
+            item['pantry'] = True
+        else:
+            item['amount'] = short
+            item['pantryNote'] = f'冰箱里的用量已扣除，这里只买差额（还差 {short}）'
     store.save_list(engine, user['id'], items)
     return items
 

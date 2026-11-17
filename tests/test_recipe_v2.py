@@ -129,3 +129,35 @@ def test_pantry_items_keep_amount_and_unit(tmp_path,monkeypatch):
     assert matched.status_code==200
     tomato=next(r for r in matched.json() if r['name']=='番茄炒蛋')
     assert all(isinstance(name,str) for name in tomato['missing'])
+
+
+def test_shopping_marks_items_already_in_pantry(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    c.put('/api/settings',json={'ingredients':[{'name':'番茄','amount':'2','unit':'个'}],'staples':[]})
+    tomato=next(r for r in c.get('/api/recipes').json() if r['name']=='番茄炒蛋')
+    items=c.post('/api/shopping',json={'ids':[tomato['id']]}).json()
+    flagged={item['name']:item['pantry'] for item in items}
+    assert flagged['番茄'] is True
+    assert flagged['鸡蛋'] is False
+    saved=c.get('/api/shopping').json()
+    assert {item['name']:item['pantry'] for item in saved}==flagged
+
+
+def test_shopping_subtracts_pantry_amount_with_unit_conversion(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    c.put('/api/settings',json={'ingredients':[{'name':'土豆','amount':'0.4','unit':'千克'}],'staples':[]})
+    potato=next(r for r in c.get('/api/recipes').json() if r['name']=='香煎土豆')
+    items=c.post('/api/shopping',json={'ids':[potato['id']]}).json()
+    item=next(i for i in items if i['name']=='土豆')
+    assert item['pantry'] is False
+    assert item['amount']=='100克'
+    assert '100克' in item['pantryNote']
+
+
+def test_shopping_treats_uncomparable_or_unquantified_pantry_as_enough(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    c.put('/api/settings',json={'ingredients':[{'name':'番茄','amount':'500','unit':'克'},{'name':'鸡蛋','amount':'','unit':''}],'staples':[]})
+    tomato=next(r for r in c.get('/api/recipes').json() if r['name']=='番茄炒蛋')
+    items={item['name']:item for item in c.post('/api/shopping',json={'ids':[tomato['id']]}).json()}
+    assert items['番茄']['pantry'] is True
+    assert items['鸡蛋']['pantry'] is True
