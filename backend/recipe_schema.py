@@ -150,14 +150,14 @@ def first_picture(document):
 def snapshot(document,kind):
     return {'kind':kind,'captured_at':now(),'recipe':{k:deepcopy(v) for k,v in document.items() if k not in ('original_snapshot','id','updated_at','created_at','tag_ids')}}
 
-def draft_v2(raw):
+def draft_v2(raw,kind='imported',platform=None):
     """Do not require complete fields until the user confirms a draft."""
     data=normalize_document(raw)
     source=data['source']
-    source['platform']='xiaohongshu' if 'xiaohongshu.com' in source.get('url','') else 'douguo'
+    source['platform']=platform or ('xiaohongshu' if 'xiaohongshu.com' in source.get('url','') else 'douguo')
     source['imported_at']=now()
     data['created_at']=data['updated_at']=now()
-    data['original_snapshot']=snapshot(data,'imported')
+    data['original_snapshot']=snapshot(data,kind)
     data['cover']=data.get('cover') or first_picture(data)
     for key in ('author','source_text','source_images','step_images'):data.pop(key,None)
     return data

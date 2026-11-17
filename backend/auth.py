@@ -120,3 +120,20 @@ def revoke_token(engine, token):
         return
     with engine.begin() as db:
         db.execute(text('DELETE FROM sessions WHERE token_hash=:hash'), {'hash': _token_digest(token)})
+
+
+def revoke_user_tokens(engine, user_id, keep=None):
+    """注销账号的全部会话，可保留当前令牌继续使用。"""
+    with engine.begin() as db:
+        if keep:
+            db.execute(text('DELETE FROM sessions WHERE user_id=:user AND token_hash!=:hash'), {'user': user_id, 'hash': _token_digest(keep)})
+        else:
+            db.execute(text('DELETE FROM sessions WHERE user_id=:user'), {'user': user_id})
+
+
+def set_password(engine, user_id, password):
+    """更新密码摘要；长度不合规抛 ValueError。"""
+    if not PASSWORD_MIN <= len(password) <= PASSWORD_MAX:
+        raise ValueError(f'密码长度需在 {PASSWORD_MIN} 到 {PASSWORD_MAX} 个字符之间')
+    with engine.begin() as db:
+        db.execute(text('UPDATE users SET password_hash=:password WHERE id=:user'), {'password': hash_password(password), 'user': user_id})

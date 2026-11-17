@@ -9,9 +9,10 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
+import httpx
 from sqlalchemy import create_engine
 
-from backend import auth, douguo_search, recipe_store as store
+from backend import ai_recipe, auth, douguo_search, recipe_store as store
 from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
@@ -35,6 +36,17 @@ class Link(BaseModel):
 class ImportSearch(BaseModel):
     keyword: str = Field(min_length=1, max_length=30)
     index: int = 0
+class AIPrompt(BaseModel):
+    prompt: str = Field(min_length=2, max_length=300)
+class AiConfig(BaseModel):
+    base: str = Field(default='', max_length=300)
+    model: str = Field(default='', max_length=100)
+    key: str = Field(default='', max_length=400)
+class PasswordChange(BaseModel):
+    old_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
+class Secret(BaseModel):
+    password: str = Field(min_length=1, max_length=128)
 class PantryItem(BaseModel):
     name: str = Field(min_length=1, max_length=60)
     amount: str = Field(default='', max_length=30)
@@ -104,6 +116,28 @@ def logout(authorization: str = Header(default=''), user: dict = Depends(current
 def me(user: dict = Depends(current_user)):
     """返回当前登录用户，用于前端恢复会话。"""
     return user
+
+
+@app.patch('/api/auth/password')
+def change_password(body: PasswordChange, authorization: str = Header(default=''), user: dict = Depends(current_user)):
+    """校验旧密码后更新密码，并让该账号的其他会话全部失效。"""
+    if not auth.authenticate(engine, user['username'], body.old_password):
+        raise HTTPException(422, '当前密码不正确')
+    try:
+        auth.set_password(engine, user['id'], body.new_password)
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    auth.revoke_user_tokens(engine, user['id'], keep=bearer_token(authorization))
+    return {'ok': True}
+
+
+@app.delete('/api/auth/account')
+def delete_account(body: Secret, user: dict = Depends(current_user)):
+    """确认密码后永久删除账号及其全部数据，不可恢复。"""
+    if not auth.authenticate(engine, user['username'], body.password):
+        raise HTTPException(422, '密码不正确，账号未删除')
+    store.purge_user(engine, user['id'])
+    return {'ok': True}
 
 
 @app.post('/api/media')
@@ -244,6 +278,110 @@ def search_recipe(body: ImportSearch, user: dict = Depends(current_user)):
         'title': candidates[index]['title'],
         'cover': candidates[index]['cover'],
     }}
+
+
+@app.post('/api/imports/generate')
+def generate_recipe(body: AIPrompt, user: dict = Depends(current_user)):
+    """按一句话要求让 AI 写一份食谱草稿，仍需用户在编辑器里核对后保存。"""
+    catalogue = store.catalogue(engine, user['id'])
+    groups = {group['id']: group['name'] for group in catalogue['groups']}
+    choices = [{'id': tag['id'], 'name': tag['name'], 'group': groups.get(tag['group_id'], '')} for tag in catalogue['tags']]
+    ai_tag = next((tag for tag in choices if tag['name'] == store.AI_TAG), None)
+    try:
+        raw = ai_recipe.generate(body.prompt.strip(), ai_settings(user['id']), [tag['name'] for tag in choices if tag is not ai_tag])
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    raw.pop('source', None)
+    raw['author'] = 'AI 生成草稿'
+    names = [str(name).strip() for name in (raw.get('tags') or [])]
+    picked = [tag for tag in choices if tag is not ai_tag and tag['name'] in names]
+    raw['tags'] = ([ai_tag] if ai_tag else []) + picked
+    if not raw.get('cover'):
+        raw['cover'] = ai_cover(raw.get('name', ''))
+    return draft_v2(raw, kind='ai_generated', platform='manual')
+
+
+def ai_cover(name):
+    """按菜名在豆果找一张成品图并保存到本地，失败时返回空串由前端回退图标。"""
+    try:
+        candidates = douguo_search.search_candidates(name)
+    except (ValueError, httpx.HTTPError):
+        return ''
+    if not candidates or not candidates[0].get('cover'):
+        return ''
+    draft = {'source_images': [candidates[0]['cover']], 'step_images': []}
+    try:
+        download_recipe_images(draft)
+    except (ValueError, OSError):
+        return ''
+    return (draft.get('source_images') or [''])[0]
+
+
+def ai_settings(user_id):
+    """合并账号内保存的配置与环境变量，账号配置优先。"""
+    stored = store.read_ai_settings(engine, user_id)
+    env = ai_recipe.config()
+    return {
+        'base': stored['base'] or env['base'],
+        'model': stored['model'] or env['model'],
+        'key': stored['key'] or env['key'],
+        'own': bool(stored['key']),
+    }
+
+
+def ai_status(settings):
+    key = settings['key']
+    return {
+        'configured': bool(key),
+        'base': settings['base'],
+        'model': settings['model'],
+        'source': 'account' if settings['own'] else ('environment' if key else ''),
+        'key_hint': ('••••' + key[-4:]) if key else '',
+    }
+
+
+@app.get('/api/ai/settings')
+def get_ai_settings(user: dict = Depends(current_user)):
+    return ai_status(ai_settings(user['id']))
+
+
+@app.put('/api/ai/settings')
+def save_ai_settings(body: AiConfig, user: dict = Depends(current_user)):
+    """保存本账号的 AI 配置；key 留空表示沿用已保存的 key。"""
+    stored = store.read_ai_settings(engine, user['id'])
+    store.save_ai_settings(engine, user['id'], {
+        'base': body.base.strip(),
+        'model': body.model.strip(),
+        'key': body.key.strip() or stored['key'],
+    })
+    return ai_status(ai_settings(user['id']))
+
+
+@app.post('/api/ai/verify')
+def verify_ai(body: AiConfig, user: dict = Depends(current_user)):
+    """用一次极短的请求验证地址与 key，可校验尚未保存的内容。"""
+    stored = store.read_ai_settings(engine, user['id'])
+    env = ai_recipe.config()
+    settings = {
+        'base': body.base.strip() or stored['base'] or env['base'],
+        'model': body.model.strip() or stored['model'] or env['model'],
+        'key': body.key.strip() or stored['key'] or env['key'],
+    }
+    try:
+        ai_recipe.verify(settings)
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    return {'ok': True}
+
+
+@app.post('/api/ai/suggest')
+def suggest_dishes(body: Match, user: dict = Depends(current_user)):
+    """按冰箱现有食材给出候选菜名与理由，满意后再单独生成食谱。"""
+    try:
+        dishes = ai_recipe.suggest(ai_settings(user['id']), [item.name for item in body.ingredients], [item.name for item in body.staples])
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    return {'dishes': dishes}
 
 
 @app.post('/api/match')

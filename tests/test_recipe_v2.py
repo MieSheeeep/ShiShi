@@ -161,3 +161,104 @@ def test_shopping_treats_uncomparable_or_unquantified_pantry_as_enough(tmp_path,
     items={item['name']:item for item in c.post('/api/shopping',json={'ids':[tomato['id']]}).json()}
     assert items['番茄']['pantry'] is True
     assert items['鸡蛋']['pantry'] is True
+
+
+def test_ai_generated_draft_is_editable_manual_recipe(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    import backend.main as module
+    monkeypatch.setattr(module.ai_recipe,'generate',lambda prompt,settings=None,tags=None:{
+        'name':'AI 番茄面','minutes':'20 分钟','servings':'1 人份',
+        'ingredients':[{'name':'番茄','amount':'1 个'},{'name':'挂面','amount':'100 克'}],
+        'steps':['番茄切块炒软','加水煮开下面条'],'notes':'趁热吃'})
+    draft=c.post('/api/imports/generate',json={'prompt':'一个人的番茄面'}).json()
+    assert draft['source']['platform']=='manual'
+    assert draft['source']['author']=='AI 生成草稿'
+    assert draft['original_snapshot']['kind']=='ai_generated'
+    assert all(step['id'] for step in draft['steps'])
+    saved=c.post('/api/recipes',json=draft)
+    assert saved.status_code==200 and saved.json()['name']=='AI 番茄面'
+
+
+def test_ai_generate_surfaces_missing_configuration(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    import backend.main as module
+    def boom(prompt,settings=None,tags=None): raise ValueError('还没有配置 AI 接口，请填写 API Key 后再试')
+    monkeypatch.setattr(module.ai_recipe,'generate',boom)
+    response=c.post('/api/imports/generate',json={'prompt':'番茄面'})
+    assert response.status_code==422
+    assert 'API Key' in response.json()['detail']
+
+
+def test_ai_settings_are_masked_saved_per_account_and_used_for_generation(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    import backend.main as module
+    monkeypatch.setattr(module.ai_recipe,'config',lambda:{'base':'','key':'','model':''})
+    assert c.get('/api/ai/settings').json()['configured'] is False
+    saved=c.put('/api/ai/settings',json={'base':'https://api.deepseek.com/v1','model':'deepseek-chat','key':'sk-test-5678'}).json()
+    assert saved['configured'] is True and saved['source']=='account'
+    assert saved['key_hint']=='••••5678' and 'sk-test' not in str(saved)
+    again=c.put('/api/ai/settings',json={'base':'https://api.deepseek.com/v1','model':'deepseek-chat'}).json()
+    assert again['key_hint']=='••••5678'
+    seen={}
+    def fake(prompt,settings=None,tags=None):
+        seen.update(settings)
+        return {'name':'账号配置菜','ingredients':[{'name':'番茄','amount':'1 个'}],'steps':['炒熟']}
+    monkeypatch.setattr(module.ai_recipe,'generate',fake)
+    monkeypatch.setattr(module,'ai_cover',lambda name:'')
+    assert c.post('/api/imports/generate',json={'prompt':'番茄'}).status_code==200
+    assert seen['key']=='sk-test-5678' and seen['model']=='deepseek-chat'
+
+
+def test_ai_draft_only_keeps_tags_from_catalog(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    import backend.main as module
+    monkeypatch.setattr(module.ai_recipe,'generate',lambda prompt,settings,tags:
+        {'name':'AI 炒饭','ingredients':[{'name':'米饭','amount':'1碗'}],'steps':['炒'],'tags':['快手菜','不存在的标签']})
+    monkeypatch.setattr(module,'ai_cover',lambda name:PHOTO)
+    draft=c.post('/api/imports/generate',json={'prompt':'来一份炒饭'}).json()
+    assert [tag['name'] for tag in draft['tags']]==['AI','快手菜']
+    assert {tag['group'] for tag in draft['tags']}=={'我的分类'}
+    assert draft['cover']==PHOTO
+
+
+def test_ai_suggest_returns_dishes_and_surfaces_errors(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    import backend.main as module
+    seen={}
+    def fake(settings,ingredients,staples):
+        seen.update({'ingredients':ingredients,'staples':staples})
+        return [{'name':'番茄炒蛋','reason':'有番茄和鸡蛋'}]
+    monkeypatch.setattr(module.ai_recipe,'suggest',fake)
+    response=c.post('/api/ai/suggest',json={'ingredients':[{'name':'番茄','amount':'2','unit':'个'}],'staples':[{'name':'盐'}]})
+    assert response.status_code==200
+    assert response.json()['dishes']==[{'name':'番茄炒蛋','reason':'有番茄和鸡蛋'}]
+    assert seen=={'ingredients':['番茄'],'staples':['盐']}
+    def boom(settings,ingredients,staples): raise ValueError('AI 没有给出可用的菜名，请再试一次')
+    monkeypatch.setattr(module.ai_recipe,'suggest',boom)
+    assert c.post('/api/ai/suggest',json={'ingredients':[],'staples':[]}).status_code==422
+
+
+def test_password_change_revokes_other_sessions(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch)
+    first=c.post('/api/auth/register',json={'username':'tester','password':'shishi123'}).json()['token']
+    second=c.post('/api/auth/login',json={'username':'tester','password':'shishi123'}).json()['token']
+    wrong=c.patch('/api/auth/password',json={'old_password':'wrong','new_password':'newpass123'},headers={'Authorization':'Bearer '+first})
+    assert wrong.status_code==422
+    changed=c.patch('/api/auth/password',json={'old_password':'shishi123','new_password':'newpass123'},headers={'Authorization':'Bearer '+first})
+    assert changed.status_code==200
+    assert c.get('/api/auth/me',headers={'Authorization':'Bearer '+first}).status_code==200
+    assert c.get('/api/auth/me',headers={'Authorization':'Bearer '+second}).status_code==401
+    assert c.post('/api/auth/login',json={'username':'tester','password':'newpass123'}).status_code==200
+
+
+def test_delete_account_removes_only_its_own_data(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    assert c.post('/api/recipes',json=legacy()).status_code==200
+    wrong=c.request('DELETE','/api/auth/account',json={'password':'wrong'})
+    assert wrong.status_code==422
+    assert c.request('DELETE','/api/auth/account',json={'password':'shishi123'}).status_code==200
+    assert c.get('/api/auth/me').status_code==401
+    fresh=c.post('/api/auth/register',json={'username':'tester','password':'shishi123'}).json()
+    c.headers.update({'Authorization':'Bearer '+fresh['token']})
+    names=[row['name'] for row in c.get('/api/recipes').json()]
+    assert '测试食谱' not in names and len(names)==6

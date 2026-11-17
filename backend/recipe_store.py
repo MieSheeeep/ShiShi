@@ -15,6 +15,7 @@ from backend.seed import examples
 
 SEASON_GROUP = '四季'
 SEASONS = ('春天', '夏天', '秋天', '冬天')
+AI_TAG = 'AI'
 
 
 def _columns(engine, table):
@@ -128,7 +129,17 @@ def initialize(engine, seed=True):
             db.execute(text('UPDATE recipes SET body=:body WHERE id=:id'), {'id': rid, 'body': json.dumps(body, ensure_ascii=False)})
     backfill_demo_covers(engine)
     backfill_season_tags(engine)
+    backfill_ai_tag(engine)
     backfill_condiment_kinds(engine)
+
+
+def backfill_ai_tag(engine):
+    """为已有账号在「我的分类」下补一个 AI 标签，标记 AI 生成的食谱。"""
+    with engine.begin() as db:
+        users = [row['user_id'] for row in db.execute(text('SELECT DISTINCT user_id FROM tag_groups WHERE user_id IS NOT NULL')).mappings()]
+        for user_id in users:
+            group = _group(db, '我的分类', user_id)
+            _tag(db, group['id'], AI_TAG, user_id)
 
 
 def backfill_condiment_kinds(engine):
@@ -215,6 +226,8 @@ def bootstrap_user(engine, user_id):
             if name == SEASON_GROUP:
                 for season in SEASONS:
                     _tag(db, group['id'], season, user_id)
+            if name == '我的分类':
+                _tag(db, group['id'], AI_TAG, user_id)
     if not claimed:
         seed_user(engine, user_id)
 
@@ -363,3 +376,31 @@ def save_settings(engine, user_id, body):
     """保存用户的常备食材设置。"""
     with engine.begin() as db:
         db.execute(text('INSERT INTO settings(key,body) VALUES(:key,:body) ON CONFLICT(key) DO UPDATE SET body=excluded.body'), {'key': f'{user_id}:pantry', 'body': body.model_dump_json()})
+
+
+def read_ai_settings(engine, user_id):
+    """读取用户自己的 AI 接口配置，未配置时返回空字段。"""
+    with engine.connect() as db:
+        row = db.execute(text('SELECT body FROM settings WHERE key=:key'), {'key': f'{user_id}:ai'}).first()
+    body = json.loads(row.body) if row else {}
+    return {'base': body.get('base', ''), 'model': body.get('model', ''), 'key': body.get('key', '')}
+
+
+def save_ai_settings(engine, user_id, body):
+    """覆盖保存用户的 AI 配置。"""
+    with engine.begin() as db:
+        db.execute(text('INSERT INTO settings(key,body) VALUES(:key,:body) ON CONFLICT(key) DO UPDATE SET body=excluded.body'), {'key': f'{user_id}:ai', 'body': json.dumps(body, ensure_ascii=False)})
+
+
+def purge_user(engine, user_id):
+    """永久删除账号及其食谱、标签、清单、设置与会话。"""
+    with engine.begin() as db:
+        groups = [row.id for row in db.execute(text('SELECT id FROM tag_groups WHERE user_id=:user'), {'user': user_id})]
+        for group_id in groups:
+            db.execute(text('DELETE FROM tags WHERE group_id=:group'), {'group': group_id})
+        db.execute(text('DELETE FROM tag_groups WHERE user_id=:user'), {'user': user_id})
+        db.execute(text('DELETE FROM recipes WHERE user_id=:user'), {'user': user_id})
+        db.execute(text('DELETE FROM shopping WHERE user_id=:user'), {'user': user_id})
+        db.execute(text('DELETE FROM settings WHERE key LIKE :prefix'), {'prefix': f'{user_id}:%'})
+        db.execute(text('DELETE FROM sessions WHERE user_id=:user'), {'user': user_id})
+        db.execute(text('DELETE FROM users WHERE id=:user'), {'user': user_id})

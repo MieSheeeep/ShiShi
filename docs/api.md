@@ -103,8 +103,18 @@
 ### 常备食材 Settings
 
 ```json
-{ "ingredients": ["番茄", "鸡蛋"], "staples": ["盐", "油"] }
+{ "ingredients": [{"name": "番茄", "amount": "2", "unit": "个"}], "staples": [{"name": "盐", "amount": "", "unit": ""}] }
 ```
+
+名称必填；`amount` 与 `unit` 可为空，表示未记录用量。
+
+### AI 配置 AiSettings
+
+```json
+{ "base": "https://api.deepseek.com/v1", "model": "deepseek-chat", "configured": true, "source": "account", "key_hint": "••••5678" }
+```
+
+写入时可以只传 `base` 与 `model`，省略 `key` 表示沿用已保存的 Key。读取时只返回末四位，不回传完整 Key。`source` 为 `account` 或 `env`，表示配置来自账号还是环境变量。
 
 ## 四、接口列表
 
@@ -114,6 +124,8 @@
 | POST | `/api/auth/login` | 否 | 账号密码登录，返回令牌 |
 | POST | `/api/auth/logout` | 是 | 退出登录，当前令牌失效 |
 | GET | `/api/auth/me` | 是 | 返回当前用户，用于前端恢复会话 |
+| PUT | `/api/auth/password` | 是 | 修改密码 `{"old_password": "...", "new_password": "..."}`；其他会话令牌失效 |
+| DELETE | `/api/auth/account` | 是 | 注销账号 `{"password": "..."}`；删除该账号的食谱、标签、清单、设置与会话 |
 | GET | `/api/recipes?tag_id=<ID>&tag_id=<ID>` | 是 | 当前用户的食谱列表，多个标签为“同时满足” |
 | POST | `/api/recipes` | 是 | 新增食谱；来源链接在当前账号内重复返回 409 |
 | PUT | `/api/recipes/{id}` | 是 | 更新食谱；只能改自己的记录 |
@@ -127,8 +139,13 @@
 | DELETE | `/api/tag-groups/{id}` | 是 | 删除空分组；分组内仍有标签返回 422 |
 | DELETE | `/api/tags/{id}` | 是 | 删除标签并清理自己食谱中的引用 |
 | POST | `/api/imports` | 是 | 解析豆果或小红书链接，返回可编辑草稿（不落库） |
+| POST | `/api/imports/search` | 是 | 按菜名搜索豆果 `{"keyword": "...", "index": 0}`，返回草稿与 `meta`；已收藏的结果自动跳过 |
+| POST | `/api/imports/generate` | 是 | 用一句话生成食谱草稿 `{"prompt": "..."}`；自动加入「AI」标签并查找封面 |
+| GET | `/api/ai/settings` | 是 | 读取当前账号的 AI 配置（Key 只回显末四位） |
+| PUT | `/api/ai/settings` | 是 | 保存 AI 配置 `{"base": "...", "model": "...", "key": "..."}` |
+| POST | `/api/ai/suggest` | 是 | 按食材推荐菜式 `{"ingredients": [], "staples": []}`，返回 `{"dishes": [{"name": "...", "reason": "..."}]}` |
 | POST | `/api/match` | 是 | 按现有食材匹配食谱 `{"ingredients": [], "staples": []}` |
-| POST | `/api/shopping` | 是 | 按食谱 ID 合并采购清单 `{"ids": [1, 2]}` |
+| POST | `/api/shopping` | 是 | 按食谱 ID 合并采购清单 `{"ids": [1, 2]}`；按冰箱库存扣减，库存足够的条目标记为 `pantry` 且不计入待买 |
 | GET | `/api/shopping` | 是 | 读取当前用户的采购清单 |
 | PUT | `/api/shopping` | 是 | 覆盖保存采购清单 `{"items": [...]}` |
 | GET | `/api/settings` | 是 | 读取常备食材 |
@@ -136,7 +153,9 @@
 
 图片通过 `GET /api/media/<文件>` 公开读取，URL 为内容哈希，图片本身不含用户隐私，不参与鉴权，便于 `<img>` 直接展示。内置演示封面使用 `GET /api/demo/<文件>`，随仓库分发。
 
-`cover` 是食谱卡片的封面地址：只接受 `/api/media/` 或 `/api/demo/` 下的本地图片，留空时前端回退显示食谱图标。导入的食谱可在编辑器中把首图、步骤图或上传的照片设为封面。
+`cover` 是食谱卡片的封面地址：只接受 `/api/media/` 或 `/api/demo/` 下的本地图片，留空时前端回退显示食谱图标。导入的食谱可在编辑器中把首图、步骤图或上传的照片设为封面。AI 生成的草稿会按菜名在豆果检索一张成品图并下载到 `/api/media/`，未命中时留空。
+
+AI 相关接口在未配置模型时返回 422，`detail` 提示先在账号管理中填写 Key；模型返回内容无法解析为食谱时同样返回 422。
 
 ## 五、完整流程示例
 
@@ -166,4 +185,4 @@ Authorization: Bearer t...
 
 - 食谱、标签分组、标签、采购清单、常备食材都按账号隔离；不同用户可以使用相同的来源链接。
 - 升级前没有账号归属的本地数据（旧 `recipes`、`tag_groups`、清单与设置）会在**第一个账号注册时**整体交给该账号，避免旧收藏丢失。
-- 新注册的账号若没有认领到旧数据，会自动复制 6 道内置演示食谱与“我的分类 / 厨具 / 口味”三个默认分组。
+- 新注册的账号若没有认领到旧数据，会自动复制 6 道内置演示食谱与“我的分类 / 厨具 / 口味 / 四季”四个默认分组；「我的分类」下附带「AI」标签用于标记 AI 生成的食谱。

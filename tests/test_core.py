@@ -1,8 +1,37 @@
 import httpx
 import pytest
 from backend import douguo_search as search
+from backend import ai_recipe
 from backend.condiments import is_condiment
 from backend.core import parse_douguo, merge_ingredients, canonical_url
+
+
+def test_ai_recipe_reads_fenced_json():
+    text = '```json\n{"name":"番茄炒蛋","ingredients":[{"name":"番茄","amount":"2个"}],"steps":["炒熟"]}\n```'
+    data = ai_recipe.read_json(text)
+    assert data['name'] == '番茄炒蛋' and len(data['steps']) == 1
+
+def test_ai_recipe_rejects_missing_fields():
+    with pytest.raises(ValueError, match='缺少'):
+        ai_recipe.read_json('{"name":"只有名字"}')
+    with pytest.raises(ValueError, match='可解析'):
+        ai_recipe.read_json('抱歉，我无法完成')
+
+def test_ai_recipe_suggest_keeps_name_and_reason(monkeypatch):
+    monkeypatch.setattr(ai_recipe, '_chat', lambda settings, messages, extra=None:
+        '{"dishes":[{"name":" 番茄炒蛋 ","reason":"有番茄和鸡蛋"},{"name":""},{"reason":"没有菜名"}]}')
+    dishes = ai_recipe.suggest({'key':'k'}, ['番茄'], ['盐'])
+    assert dishes == [{'name':'番茄炒蛋','reason':'有番茄和鸡蛋'}]
+
+def test_ai_recipe_suggest_rejects_empty_answer(monkeypatch):
+    monkeypatch.setattr(ai_recipe, '_chat', lambda settings, messages, extra=None: '{"dishes":[]}')
+    with pytest.raises(ValueError, match='菜名'):
+        ai_recipe.suggest({'key':'k'}, [], [])
+
+def test_ai_recipe_requires_key(monkeypatch):
+    monkeypatch.setattr(ai_recipe, 'config', lambda: {'base':'http://x','key':'','model':'m'})
+    with pytest.raises(ValueError, match='API Key'):
+        ai_recipe.generate('番茄炒蛋')
 
 
 def test_condiment_detection():
