@@ -1,5 +1,15 @@
+import httpx
 import pytest
+from backend import douguo_search as search
+from backend.condiments import is_condiment
 from backend.core import parse_douguo, merge_ingredients, canonical_url
+
+
+def test_condiment_detection():
+    assert is_condiment('黄油') and is_condiment('生抽') and is_condiment('橄榄油')
+    assert is_condiment('蒜') and is_condiment('黑胡椒')
+    assert not is_condiment('油麦菜') and not is_condiment('牛油果')
+    assert not is_condiment('番茄') and not is_condiment('')
 
 def test_douguo_table():
     html = '<h1 class="title">番茄炒蛋</h1><table class="retamr"><tr><td><span class="scname">西红柿</span></td><td><span class="scnum">两个</span></td></tr></table><div class="step"><p>1. 切块炒熟</p></div>'
@@ -24,6 +34,25 @@ def test_url_restricted():
 
 def test_no_invented_recipe():
     with pytest.raises(ValueError): parse_douguo('<h1>验证页面</h1>', 'https://www.douguo.com/cookbook/1.html')
+
+def test_search_candidates_parse():
+    page = '<ul class="cook-list"><li class="clearfix"><a class="cook-img" href="/cookbook/1.html" title="番茄炒蛋"><img src="https://cp1.douguo.com/a.jpg"/></a><div class="cook-info"><a class="cookname" href="/cookbook/1.html">番茄炒蛋</a><p class="major">鸡蛋：,番茄： </p><div class="score"><span>收藏人数 4284</span></div></div></li><li class="clearfix"><a class="cook-img" href="/cookbook/1.html" title="重复条目"><img src="https://cp1.douguo.com/b.jpg"/></a></li></ul>'
+    items = search.parse_candidates(page)
+    assert len(items) == 1
+    assert items[0]['url'] == 'https://www.douguo.com/cookbook/1.html'
+    assert items[0]['title'] == '番茄炒蛋'
+    assert items[0]['likes'] == 4284
+    assert items[0]['cover'].endswith('a.jpg')
+
+def test_search_blocked_and_empty():
+    def blocked(request):
+        return httpx.Response(403, text='blocked') if request.url.path.startswith('/caipu/') else httpx.Response(200, text='<html></html>')
+    with pytest.raises(ValueError, match='限制了搜索访问'):
+        search.search_candidates('被拦截的测试词', transport=httpx.MockTransport(blocked))
+    def empty(request):
+        return httpx.Response(200, text='<html>没有结果</html>')
+    with pytest.raises(ValueError, match='没有找到相关菜谱'):
+        search.search_candidates('没有结果的测试词', transport=httpx.MockTransport(empty))
 
 def test_jsonld_nested_steps_and_quantity():
     html = '<script type="application/ld+json">{"@graph":[{"@type":"Recipe","name":"蛋饼","recipeIngredient":["鸡蛋2个","面粉 100克"],"recipeInstructions":[{"@type":"HowToSection","itemListElement":[{"text":"搅拌"},{"text":"煎熟"}]}]}]}</script>'

@@ -74,3 +74,6 @@
 .cover-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 12px 0 0; }
 .cover-actions .secondary { padding: 8px 12px; font-size: 11px; }
 .cover-picker { margin-top: 12px; }
+.editor-search-next { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px dashed #e2e6d8; }
+.editor-search-next .muted { font-size: 11px; }
+.editor-search-next .secondary { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 11px; }

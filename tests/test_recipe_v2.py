@@ -117,3 +117,15 @@ def test_seasons_group_and_demo_recipe_tags(tmp_path,monkeypatch):
     assert {t['name'] for t in tomato['tags']}=={'快手菜','夏天'}
     porridge=next(r for r in rows if r['name']=='南瓜小米粥')
     assert any(t['name']=='秋天' for t in porridge['tags'])
+
+
+def test_pantry_items_keep_amount_and_unit(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    c.put('/api/settings',json={'ingredients':[{'name':'番茄','amount':'2','unit':'个'}],'staples':['黄油']})
+    body=c.get('/api/settings').json()
+    assert body['ingredients']==[{'name':'番茄','amount':'2','unit':'个'}]
+    assert body['staples']==[{'name':'黄油','amount':'','unit':''}]
+    matched=c.post('/api/match',json={'ingredients':[{'name':'番茄','amount':'2','unit':'个'}],'staples':[{'name':'盐'}]})
+    assert matched.status_code==200
+    tomato=next(r for r in matched.json() if r['name']=='番茄炒蛋')
+    assert all(isinstance(name,str) for name in tomato['missing'])

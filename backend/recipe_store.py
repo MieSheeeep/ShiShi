@@ -10,6 +10,7 @@ from sqlalchemy import inspect, text
 
 from backend import auth
 from backend.recipe_schema import Recipe, first_picture, now, new_id, snapshot
+from backend.condiments import is_condiment
 from backend.seed import examples
 
 SEASON_GROUP = '四季'
@@ -127,6 +128,21 @@ def initialize(engine, seed=True):
             db.execute(text('UPDATE recipes SET body=:body WHERE id=:id'), {'id': rid, 'body': json.dumps(body, ensure_ascii=False)})
     backfill_demo_covers(engine)
     backfill_season_tags(engine)
+    backfill_condiment_kinds(engine)
+
+
+def backfill_condiment_kinds(engine):
+    """把按名称可判定为调料的旧食材，统一标记为调料。"""
+    with engine.begin() as db:
+        for row in db.execute(text('SELECT id,body FROM recipes')).all():
+            body = json.loads(row.body)
+            changed = False
+            for item in body.get('ingredients', []):
+                if item.get('kind') != '调料' and is_condiment(item.get('name', '')):
+                    item['kind'] = '调料'
+                    changed = True
+            if changed:
+                db.execute(text('UPDATE recipes SET body=:body WHERE id=:id'), {'id': row.id, 'body': json.dumps(body, ensure_ascii=False)})
 
 
 def backfill_season_tags(engine):
@@ -333,10 +349,14 @@ def save_list(engine, user_id, items):
 
 
 def read_settings(engine, user_id):
-    """读取用户的常备食材设置。"""
+    """读取用户的常备食材设置，旧版字符串自动补成 {name,amount,unit}。"""
     with engine.connect() as db:
         row = db.execute(text('SELECT body FROM settings WHERE key=:key'), {'key': f'{user_id}:pantry'}).first()
-    return json.loads(row.body) if row else {'ingredients': [], 'staples': ['盐', '油']}
+    body = json.loads(row.body) if row else {'ingredients': [], 'staples': ['盐', '油']}
+    for key in ('ingredients', 'staples'):
+        items = body.get(key) or []
+        body[key] = [{'name': item, 'amount': '', 'unit': ''} if isinstance(item, str) else item for item in items]
+    return body
 
 
 def save_settings(engine, user_id, body):

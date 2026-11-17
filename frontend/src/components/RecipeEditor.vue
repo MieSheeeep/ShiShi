@@ -1,11 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { X, Plus, Check, Trash2, ImagePlus, RotateCcw } from 'lucide-vue-next'
+import { X, Plus, Check, Trash2, ImagePlus, RotateCcw, RefreshCw } from 'lucide-vue-next'
 import OrderButtons from './OrderButtons.vue'
 import TagPicker from './TagPicker.vue'
 import { moveItem, attachImage, newStep, newIngredient, api } from '../recipeEditing'
-const props=defineProps({recipe:Object,catalog:Object,busy:Boolean,error:String})
-const emit=defineEmits(['cancel','save','catalog-change','manage-tags'])
+const props=defineProps({recipe:Object,catalog:Object,busy:Boolean,error:String,searchMeta:Object})
+const emit=defineEmits(['cancel','save','catalog-change','manage-tags','next'])
 const copy=value=>JSON.parse(JSON.stringify(value))
 const model=ref(copy(props.recipe)),initial=JSON.stringify(props.recipe),picking=ref(null),pickingCover=ref(false),uploadError=ref('')
 const dirty=computed(()=>JSON.stringify(model.value)!==initial)
@@ -70,6 +70,7 @@ onBeforeUnmount(()=>window.removeEventListener('beforeunload',guard))
     <label>我的备注<textarea v-model="model.notes" placeholder="口味调整、实践心得…"/></label>
     <p v-if="error" class="alert" role="alert">{{error}}</p>
     <div class="editor-footer"><button type="button" class="secondary" :disabled="busy||!dirty" @click="reset"><RotateCcw :size="15"/>撤回本次修改</button><button class="primary" :disabled="busy">{{busy?'正在保存…':'保存食谱'}}<Check :size="17"/></button></div>
+    <div v-if="searchMeta" class="editor-search-next"><span class="muted">豆果搜索「{{searchMeta.keyword}}」第 {{searchMeta.index+1}} / {{searchMeta.total}} 个结果 · 换一个会替换当前草稿</span><button type="button" class="secondary" :disabled="busy" @click="emit('next')">换一个 <RefreshCw :size="15"/></button></div>
   </form>
 </section></div>
 </template>
