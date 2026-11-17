@@ -42,6 +42,8 @@ class AiConfig(BaseModel):
     base: str = Field(default='', max_length=300)
     model: str = Field(default='', max_length=100)
     key: str = Field(default='', max_length=400)
+class XhsCookie(BaseModel):
+    cookie: str = Field(default='', max_length=4000)
 class PasswordChange(BaseModel):
     old_password: str = Field(min_length=1, max_length=128)
     new_password: str = Field(min_length=6, max_length=128)
@@ -241,7 +243,7 @@ def import_recipe(link: Link, user: dict = Depends(current_user)):
     if any(recipe['source']['url'] == url for recipe in store.list_recipes(engine, user['id'])):
         raise HTTPException(409, '这个链接已经在你的食谱库中了')
     try:
-        draft = fetch_recipe(original)
+        draft = fetch_recipe(original, xhs_cookie=store.read_xhs_cookie(engine, user['id']))
         if any(recipe['source']['url'] == draft['source'] for recipe in store.list_recipes(engine, user['id'])):
             raise HTTPException(409, '这篇笔记已经在你的食谱库中了')
         return draft_v2(download_recipe_images(draft))
@@ -355,6 +357,33 @@ def save_ai_settings(body: AiConfig, user: dict = Depends(current_user)):
         'key': body.key.strip() or stored['key'],
     })
     return ai_status(ai_settings(user['id']))
+
+
+def xhs_status(user_id):
+    """合并账号内保存的小红书登录态与环境变量，账号配置优先。"""
+    saved = store.read_xhs_cookie(engine, user_id)
+    env = os.environ.get('XHS_COOKIE', '').strip()
+    cookie = saved or env
+    return {
+        'configured': bool(cookie),
+        'source': 'account' if saved else ('environment' if env else ''),
+        'cookie_hint': ('••••' + cookie[-6:]) if cookie else '',
+    }
+
+
+@app.get('/api/xhs/settings')
+def get_xhs_settings(user: dict = Depends(current_user)):
+    return xhs_status(user['id'])
+
+
+@app.put('/api/xhs/settings')
+def save_xhs_settings(body: XhsCookie, user: dict = Depends(current_user)):
+    """保存或清空小红书登录态；提交空串表示退出登录。"""
+    cookie = body.cookie.strip()
+    if cookie and not any(name in cookie for name in ('web_session', 'a1=')):
+        raise HTTPException(422, '这串内容不像小红书 Cookie，请复制完整的 Cookie 后再保存')
+    store.save_xhs_cookie(engine, user['id'], cookie)
+    return xhs_status(user['id'])
 
 
 @app.post('/api/ai/verify')

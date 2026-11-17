@@ -103,7 +103,7 @@ def test_import_save_reload_and_duplicate_note(tmp_path,monkeypatch):
     import backend.main as module
     module=importlib.reload(module)
     transport=httpx.MockTransport(lambda req:httpx.Response(200,text=page()))
-    monkeypatch.setattr(module,'fetch_recipe',lambda url:fetch_xiaohongshu(url,transport=transport))
+    monkeypatch.setattr(module,'fetch_recipe',lambda url,xhs_cookie='':fetch_xiaohongshu(url,transport=transport,cookie=xhs_cookie))
     with TestClient(module.app) as c:
         token=c.post('/api/auth/register',json={'username':'tester','password':'shishi123'}).json()['token']
         c.headers.update({'Authorization':'Bearer '+token})

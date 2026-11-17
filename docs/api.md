@@ -116,6 +116,14 @@
 
 写入时可以只传 `base` 与 `model`，省略 `key` 表示沿用已保存的 Key。读取时只返回末四位，不回传完整 Key。`source` 为 `account` 或 `env`，表示配置来自账号还是环境变量。
 
+### 小红书登录态 XhsSettings
+
+```json
+{ "configured": true, "source": "account", "cookie_hint": "••••789xyz" }
+```
+
+写入 `{"cookie": "web_session=…; a1=…"}` 保存登录态，提交空串表示退出登录。内容需包含 `web_session` 或 `a1=`，否则返回 422；读取只返回末六位，不回传完整 Cookie。`source` 为 `account`（账号内保存，优先）或 `environment`（来自 `XHS_COOKIE`），`configured` 表示当前是否可用。导入小红书链接时自动带上该账号的登录态。
+
 ## 四、接口列表
 
 | 方法 | 路径 | 鉴权 | 说明 |
@@ -143,6 +151,8 @@
 | POST | `/api/imports/generate` | 是 | 用一句话生成食谱草稿 `{"prompt": "..."}`；自动加入「AI」标签并查找封面 |
 | GET | `/api/ai/settings` | 是 | 读取当前账号的 AI 配置（Key 只回显末四位） |
 | PUT | `/api/ai/settings` | 是 | 保存 AI 配置 `{"base": "...", "model": "...", "key": "..."}` |
+| GET | `/api/xhs/settings` | 是 | 读取小红书登录态（Cookie 只回显末六位） |
+| PUT | `/api/xhs/settings` | 是 | 保存或清除小红书登录态 `{"cookie": "..."}`；空串表示退出，格式不符返回 422 |
 | POST | `/api/ai/suggest` | 是 | 按食材推荐菜式 `{"ingredients": [], "staples": []}`，返回 `{"dishes": [{"name": "...", "reason": "..."}]}` |
 | POST | `/api/match` | 是 | 按现有食材匹配食谱 `{"ingredients": [], "staples": []}` |
 | POST | `/api/shopping` | 是 | 按食谱 ID 合并采购清单 `{"ids": [1, 2]}`；按冰箱库存扣减，库存足够的条目标记为 `pantry` 且不计入待买 |

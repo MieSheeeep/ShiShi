@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { Check, Sparkles, X } from 'lucide-vue-next'
 import { api } from '../recipeEditing'
 import { AI_PROVIDERS } from '../aiProviders'
+import XhsLogin from './XhsLogin.vue'
 
 const emit = defineEmits(['close', 'saved'])
 const base = ref(''), model = ref(''), key = ref(''), picked = ref('')
@@ -67,6 +68,7 @@ async function save() {
         <button class="secondary" :disabled="testing || busy" @click="verify">{{ testing ? '验证中…' : '验证 Key' }}</button>
         <button class="primary" :disabled="busy || !base.trim() || !model.trim() || !key.trim()" @click="save">{{ busy ? '保存中…' : '保存并启用 AI' }}</button>
       </div>
+      <XhsLogin />
       <button class="text-button ai-later" @click="emit('close')">稍后再说</button>
     </section>
   </div>
