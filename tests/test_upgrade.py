@@ -34,7 +34,7 @@ def test_first_account_claims_data_and_later_accounts_start_fresh(tmp_path, monk
         rows = c.get('/api/recipes', headers=headers).json()
         assert [row['name'] for row in rows] == ['迁移前的红烧肉']
         assert rows[0]['id'] == 9
-        assert c.get('/api/settings', headers=headers).json()['ingredients'] == ['番茄']
+        assert c.get('/api/settings', headers=headers).json()['ingredients'] == [{'name': '番茄', 'amount': '', 'unit': ''}]
         assert c.get('/api/shopping', headers=headers).json()[0]['checked'] is True
         assert any(tag['name'] == '家常菜' for tag in c.get('/api/tags', headers=headers).json()['tags'])
 

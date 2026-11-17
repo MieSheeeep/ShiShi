@@ -8,11 +8,11 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import create_engine
 
-from backend import auth, recipe_store as store
-from backend.core import canonical_url, merge_ingredients, normalize
+from backend import auth, douguo_search, recipe_store as store
+from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
 from backend.recipe_schema import Recipe, draft_v2
@@ -32,9 +32,22 @@ class Credentials(BaseModel):
     password: str = Field(min_length=6, max_length=128)
 class Link(BaseModel):
     url: str = Field(min_length=1, max_length=20000)
+class ImportSearch(BaseModel):
+    keyword: str = Field(min_length=1, max_length=30)
+    index: int = 0
+class PantryItem(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    amount: str = Field(default='', max_length=30)
+    unit: str = Field(default='', max_length=10)
 class Match(BaseModel):
-    ingredients: list[str] = []
-    staples: list[str] = []
+    ingredients: list[PantryItem] = []
+    staples: list[PantryItem] = []
+    @field_validator('ingredients', 'staples', mode='before')
+    @classmethod
+    def legacy_names(cls, value):
+        if not value:
+            return []
+        return [{'name': item} if isinstance(item, str) else item for item in value]
 class Selection(BaseModel):
     ids: list[int] = Field(min_length=1)
 class Shopping(BaseModel):
@@ -202,9 +215,40 @@ def import_recipe(link: Link, user: dict = Depends(current_user)):
         raise HTTPException(422, str(error))
 
 
+@app.post('/api/imports/search')
+def search_recipe(body: ImportSearch, user: dict = Depends(current_user)):
+    """按菜名搜索豆果，直接返回第 index 个未收藏的候选食谱。"""
+    keyword = body.keyword.strip()
+    if not keyword:
+        raise HTTPException(422, '请输入菜名')
+    try:
+        candidates = douguo_search.search_candidates(keyword)
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    owned = {recipe['source']['url'] for recipe in store.list_recipes(engine, user['id'])}
+    index = max(body.index, 0)
+    while index < len(candidates) and candidates[index]['url'] in owned:
+        index += 1
+    if index >= len(candidates):
+        if body.index == 0:
+            raise HTTPException(409, '这些搜索结果都已经在你的食谱库中了')
+        raise HTTPException(409, '没有更多搜索结果了')
+    try:
+        draft = draft_v2(download_recipe_images(fetch_recipe(candidates[index]['url'])))
+    except ValueError as error:
+        raise HTTPException(422, str(error))
+    return {'draft': draft, 'meta': {
+        'keyword': keyword,
+        'index': index,
+        'total': len(candidates),
+        'title': candidates[index]['title'],
+        'cover': candidates[index]['cover'],
+    }}
+
+
 @app.post('/api/match')
 def match(body: Match, user: dict = Depends(current_user)):
-    have = {normalize(item) for item in body.ingredients + body.staples}
+    have = {normalize(item.name) for item in body.ingredients + body.staples}
     rows = []
     for recipe in store.list_recipes(engine, user['id']):
         missing = list(dict.fromkeys(item['name'] for item in recipe['ingredients'] if normalize(item['name']) not in have))
@@ -217,7 +261,23 @@ def create_shopping(body: Selection, user: dict = Depends(current_user)):
     rows = [recipe for recipe in store.list_recipes(engine, user['id']) if recipe['id'] in body.ids]
     if len(rows) != len(set(body.ids)):
         raise HTTPException(404, '部分食谱不存在，请重新选择')
+    settings = store.read_settings(engine, user['id'])
+    pantry = {}
+    for key in ('ingredients', 'staples'):
+        for item in settings.get(key, []):
+            raw = f"{item.get('amount', '')}{item.get('unit', '')}".strip()
+            pantry.setdefault(normalize(item['name']), []).append(quantity(raw) if raw else None)
     items = merge_ingredients(rows)
+    for item in items:
+        entries = pantry.get(item['name'])
+        if not entries:
+            continue
+        short = pantry_shortfall(item['amount'], entries)
+        if short is None:
+            item['pantry'] = True
+        else:
+            item['amount'] = short
+            item['pantryNote'] = f'冰箱里的用量已扣除，这里只买差额（还差 {short}）'
     store.save_list(engine, user['id'], items)
     return items
 

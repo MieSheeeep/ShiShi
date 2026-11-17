@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 from pydantic import BaseModel, Field, field_validator, model_validator
 from backend.source_urls import canonical_url
+from backend.condiments import is_condiment
 
 def now(): return datetime.now(timezone.utc).isoformat()
 def new_id(): return uuid4().hex
@@ -74,6 +75,11 @@ class Ingredient(BaseModel):
     def nonempty(cls,v):
         if not v.strip():raise ValueError('食材名称不能为空')
         return v.strip()
+    @model_validator(mode='after')
+    def classify(self):
+        if self.kind != '调料' and is_condiment(self.name):
+            self.kind = '调料'
+        return self
 
 class Step(BaseModel):
     id: str = Field(default_factory=new_id,min_length=1,max_length=80)

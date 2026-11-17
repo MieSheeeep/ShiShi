@@ -26,7 +26,7 @@ def merge_ingredients(recipes):
             name, raw = normalize(ing['name']), ing.get('amount','未注明') or '未注明'
             parsed = quantity(raw)
             key = (name,parsed[1] if parsed else 'text:'+raw)
-            row = grouped.setdefault(key,{'name':name,'number':Decimal(0),'unit':parsed[1] if parsed else None,'amount':raw,'sources':[],'checked':False})
+            row = grouped.setdefault(key,{'name':name,'number':Decimal(0),'unit':parsed[1] if parsed else None,'amount':raw,'sources':[],'checked':False,'pantry':False})
             if parsed: row['number'] += parsed[0]
             row['sources'].append({'recipe':recipe['name'],'original':ing['name']+' '+raw})
     rows = []
@@ -35,6 +35,20 @@ def merge_ingredients(recipes):
         del row['number']; del row['unit']
         rows.append(row)
     return rows
+
+def pantry_shortfall(amount, entries):
+    """按冰箱库存算出还需要买多少。
+
+    ``entries`` 是同一食材在冰箱里的用量，每项为 ``quantity`` 的结果或 None（没写数量）。
+    返回 None 表示不必买：库存足够、没写用量、或单位不同无法换算（按已有处理）。
+    """
+    parsed = quantity(amount)
+    known = [entry for entry in entries if entry]
+    if not parsed or not known: return None
+    need, unit = parsed
+    total = sum((number for number, u in known if u == unit), Decimal(0))
+    if total >= need or not total: return None
+    return format((need - total).normalize(), 'f') + unit
 
 def parse_douguo(html, url):
     soup = BeautifulSoup(html,'html.parser')
