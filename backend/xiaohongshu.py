@@ -72,15 +72,15 @@ def parse_note(html, url):
             'steps':steps or [''], 'import_warnings':warnings,
             'source_images':list(dict.fromkeys(images)), 'step_images':[]}
 
-def fetch_xiaohongshu(value, *, transport=None):
+def fetch_xiaohongshu(value, *, transport=None, cookie=''):
     url = xhs_fetch_url(value)
     with httpx.Client(timeout=20, follow_redirects=False, transport=transport,
                       headers={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
                                'Referer':'https://www.xiaohongshu.com/'}) as client:
         for hop in range(5):
             is_note = urlsplit(url).hostname == 'www.xiaohongshu.com'
-            cookie = os.environ.get('XHS_COOKIE','').strip() if is_note else ''
-            headers = {'Cookie':cookie} if cookie else {}
+            saved = (cookie or '').strip() or os.environ.get('XHS_COOKIE','').strip()
+            headers = {'Cookie':saved} if is_note and saved else {}
             try:
                 with client.stream('GET',url,headers=headers) as response:
                     if response.is_redirect:

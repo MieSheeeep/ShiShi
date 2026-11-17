@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { Check, KeyRound, LogOut, ShieldAlert, UserRound, X } from 'lucide-vue-next'
 import { api, clearToken } from '../recipeEditing'
 import { AI_PROVIDERS } from '../aiProviders'
+import XhsLogin from './XhsLogin.vue'
 
 const props = defineProps({ username: String })
 const emit = defineEmits(['close', 'logout'])
@@ -101,6 +102,8 @@ async function deleteAccount() {
           <button class="primary" :disabled="aiBusy || !base.trim() || !model.trim()" @click="saveAi">{{ aiBusy ? '保存中…' : '保存 AI 配置' }}</button>
         </div>
       </section>
+
+      <XhsLogin />
 
       <section class="account-block">
         <h3>修改密码</h3>

@@ -392,6 +392,22 @@ def save_ai_settings(engine, user_id, body):
         db.execute(text('INSERT INTO settings(key,body) VALUES(:key,:body) ON CONFLICT(key) DO UPDATE SET body=excluded.body'), {'key': f'{user_id}:ai', 'body': json.dumps(body, ensure_ascii=False)})
 
 
+def read_xhs_cookie(engine, user_id):
+    """读取用户保存的小红书登录态，未配置时返回空串。"""
+    with engine.connect() as db:
+        row = db.execute(text('SELECT body FROM settings WHERE key=:key'), {'key': f'{user_id}:xhs'}).first()
+    return (json.loads(row.body).get('cookie', '') if row else '') or ''
+
+
+def save_xhs_cookie(engine, user_id, cookie):
+    """保存或清空用户的小红书登录态。"""
+    with engine.begin() as db:
+        if cookie:
+            db.execute(text('INSERT INTO settings(key,body) VALUES(:key,:body) ON CONFLICT(key) DO UPDATE SET body=excluded.body'), {'key': f'{user_id}:xhs', 'body': json.dumps({'cookie': cookie}, ensure_ascii=False)})
+        else:
+            db.execute(text('DELETE FROM settings WHERE key=:key'), {'key': f'{user_id}:xhs'})
+
+
 def purge_user(engine, user_id):
     """永久删除账号及其食谱、标签、清单、设置与会话。"""
     with engine.begin() as db:

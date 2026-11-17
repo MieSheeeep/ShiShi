@@ -238,6 +238,31 @@ def test_ai_suggest_returns_dishes_and_surfaces_errors(tmp_path,monkeypatch):
     assert c.post('/api/ai/suggest',json={'ingredients':[],'staples':[]}).status_code==422
 
 
+def test_xhs_cookie_is_masked_saved_and_passed_to_import(tmp_path,monkeypatch):
+    c=client_for(tmp_path,monkeypatch);sign_in(c)
+    import backend.main as module
+    assert c.get('/api/xhs/settings').json()['configured'] is False
+    bad=c.put('/api/xhs/settings',json={'cookie':'随便一段文字'});assert bad.status_code==422
+    cookie='web_session=abc123def456; a1=789xyz'
+    saved=c.put('/api/xhs/settings',json={'cookie':cookie}).json()
+    assert saved['configured'] is True and saved['source']=='account'
+    assert saved['cookie_hint']=='••••789xyz' and 'abc123' not in str(saved)
+    seen={}
+    def fake(url,xhs_cookie=''):
+        seen['cookie']=xhs_cookie
+        return {'name':'小红书测试菜','source':url,'source_text':'原文','tags':[],
+                'ingredients':[{'name':'番茄','amount':'1个','kind':'食材'}],'steps':['切块'],
+                'source_images':[],'step_images':[],'import_warnings':[]}
+    monkeypatch.setattr(module,'fetch_recipe',fake)
+    monkeypatch.setattr(module,'download_recipe_images',lambda draft: draft)
+    response=c.post('/api/imports',json={'url':'https://www.xiaohongshu.com/explore/abcdef1234567890abcdef12?xsec_token=abc'})
+    assert response.status_code==200, response.text
+    assert seen['cookie']==cookie
+    cleared=c.put('/api/xhs/settings',json={'cookie':''}).json()
+    assert cleared['configured'] is False
+
+
+
 def test_password_change_revokes_other_sessions(tmp_path,monkeypatch):
     c=client_for(tmp_path,monkeypatch)
     first=c.post('/api/auth/register',json={'username':'tester','password':'shishi123'}).json()['token']
