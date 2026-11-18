@@ -354,7 +354,11 @@ def read_list(engine, user_id):
     """读取用户的采购清单。"""
     with engine.connect() as db:
         row = db.execute(text('SELECT body FROM shopping WHERE user_id=:user_id'), {'user_id': user_id}).first()
-    return json.loads(row.body) if row else []
+    items = json.loads(row.body) if row else []
+    for item in items:
+        if 'pantry' not in item and 'at_home' in item:
+            item['pantry'] = bool(item['at_home'])
+    return items
 
 
 def save_list(engine, user_id, items):
@@ -366,7 +370,11 @@ def save_list(engine, user_id, items):
 def read_settings(engine, user_id):
     """读取用户的常备食材设置，旧版字符串自动补成 {name,amount,unit}。"""
     with engine.connect() as db:
+        inventory = db.execute(text('SELECT body FROM settings WHERE key=:key'), {'key': f'{user_id}:fridge'}).first()
         row = db.execute(text('SELECT body FROM settings WHERE key=:key'), {'key': f'{user_id}:pantry'}).first()
+    if inventory:
+        from backend.fridge import pantry_view, state
+        return pantry_view(state(engine, user_id))
     body = json.loads(row.body) if row else {'ingredients': [], 'staples': ['盐', '油']}
     for key in ('ingredients', 'staples'):
         items = body.get(key) or []
@@ -375,9 +383,15 @@ def read_settings(engine, user_id):
 
 
 def save_settings(engine, user_id, body):
-    """保存用户的常备食材设置。"""
+    """Save either inventory version under one lock, including the existence check."""
     with engine.begin() as db:
-        db.execute(text('INSERT INTO settings(key,body) VALUES(:key,:body) ON CONFLICT(key) DO UPDATE SET body=excluded.body'), {'key': f'{user_id}:pantry', 'body': body.model_dump_json()})
+        db.exec_driver_sql('BEGIN IMMEDIATE')
+        inventory = db.execute(text('SELECT 1 FROM settings WHERE key=:key'), {'key': f'{user_id}:fridge'}).first()
+        if inventory:
+            from backend.fridge import replace_pantry, change_state
+            change_state(db, user_id, lambda data: replace_pantry(data, body.model_dump()))
+        else:
+            db.execute(text('INSERT INTO settings(key,body) VALUES(:key,:body) ON CONFLICT(key) DO UPDATE SET body=excluded.body'), {'key': f'{user_id}:pantry', 'body': body.model_dump_json()})
 
 
 def read_ai_settings(engine, user_id):

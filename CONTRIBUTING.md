@@ -82,7 +82,7 @@ git switch -c codex/recipe-editor-mobile
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
-node --test tests/recipe-editing.test.mjs tests/daily-content.test.mjs tests/solar-terms.test.mjs
+node --test tests/recipe-editing.test.mjs tests/daily-content.test.mjs tests/solar-terms.test.mjs tests/fridge-state.test.mjs tests/menu-selection.test.mjs tests/shopping-state.test.mjs
 npm --prefix frontend run build
 git diff --check
 ```
@@ -100,8 +100,8 @@ git diff --check
 | 食谱字段、稳定 ID、快照和迁移 | `docs/recipe-format.md` |
 | 小红书导入能力和限制 | `docs/xiaohongshu.md` |
 | 图片下载、存储与限制 | `docs/images.md` |
-| 冰箱管理 | 合入相关功能时补充或维护 `docs/fridge-management.md`，并从 README 链接 |
-| 选菜、菜单和采购流程 | 合入相关功能时补充或维护 `docs/menu-shopping-flow.md`，并从 README 链接 |
+| 冰箱管理 | `docs/fridge-management.md` |
+| 选菜、菜单和采购流程 | `docs/menu-shopping-flow.md` |
 | AI 助手、模型配置、每周饮食计划 | `README.md`、`docs/api.md`及对应功能说明；缺少专项说明时随功能补充 |
 | 首页精选、节气内容 | `docs/daily-content.md`、`docs/home-daily-selection.md`及相关说明 |
 | 阶段验收结果 | `docs/verification.md`，注明日期、范围和结果 |

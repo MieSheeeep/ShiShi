@@ -6,4 +6,6 @@ import './source-preview.css'
 import './recipe-editor.css'
 import './theme.css'
 import './daily-feature.css'
+import './fridge.css'
+import './shopping-flow.css'
 createApp(App).mount('#app')

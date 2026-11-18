@@ -1,0 +1,85 @@
+.fridge-summary { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:24px 27px; background:var(--green); color:var(--surface); border-radius:10px; margin-bottom:26px; }
+.fridge-summary>div { display:flex; gap:19px; align-items:center; font-size:12px; }
+.fridge-summary strong { font:32px Georgia,serif; margin-right:5px; }
+.fridge-summary small { display:block; color:#d6dccf; font-size:10px; margin-top:6px; line-height:1.8; }
+.fridge-summary .secondary { border:0; flex-shrink:0; }
+.fridge-editor,.fridge-categories,.fridge-match { padding:26px; background:var(--surface); border:1px solid var(--border); border-radius:10px; margin-bottom:25px; }
+.fridge-section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:22px; }
+.fridge-section-title h2,.fridge-categories h2 { font:600 18px 'Songti SC','SimSun',serif; color:var(--green); margin:0; }
+.fridge-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.fridge-form-grid label,.fridge-match-controls label { display:flex; flex-direction:column; gap:9px; font-size:12px; color:var(--muted); min-width:0; }
+.fridge-form-grid label>span { color:var(--accent); font-size:9px; }
+.fridge-form-grid label:first-child { position:relative; }
+.fridge-form-grid label:first-child>span { position:absolute; top:2px; right:0; }
+.fridge-notes { grid-column:1/-1; }
+.fridge-form-footer { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-top:22px; }
+.fridge-toolbar { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:20px; }
+.fridge-tabs { display:flex; gap:5px; padding:4px; background:#e8e3d7; border-radius:7px; }
+.fridge-tabs button { padding:9px 15px; border-radius:5px; color:var(--muted); font-size:12px; }
+.fridge-tabs button.chosen { background:var(--surface); color:var(--green); box-shadow:0 1px 3px #2928230c; }
+.fridge-filters { display:flex; gap:12px; margin-bottom:17px; }
+.fridge-filters .search { flex:1; }
+.fridge-filters .search input { width:100%; }
+.fridge-filters select { font-size:12px; }
+.fridge-category-pills { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:23px; }
+.fridge-category-pills button { border:1px solid var(--border); border-radius:5px; padding:7px 11px; font-size:11px; color:#6a6559; max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+.fridge-category-pills button.chosen { background:var(--green); border-color:var(--green); color:var(--surface); }
+.fridge-food-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:17px; margin-bottom:28px; }
+.fridge-food { padding:21px; min-width:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; }
+.fridge-food-top { display:flex; gap:8px; justify-content:space-between; font-size:10px; color:var(--muted); margin-bottom:18px; }
+.fridge-food-top span:first-child { color:var(--accent); overflow-wrap:anywhere; }
+.fridge-food-top span:last-child { flex-shrink:0; }
+.fridge-food h3 { font:22px/1.5 'Songti SC','SimSun',serif; color:var(--green); margin:0 0 9px; overflow-wrap:anywhere; }
+.fridge-quantity { font-size:13px; margin-bottom:15px; }
+.fridge-food-note { min-height:35px; font-size:11px; line-height:1.8; color:var(--muted); overflow-wrap:anywhere; }
+.fridge-food-actions { display:flex; gap:14px; align-items:center; border-top:1px solid var(--border); padding-top:11px; }
+.fridge-food-actions .icon-button { margin-left:auto; }
+.food-used { background:#eee9df; }
+.fridge-confirm { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:12px 0 0; font-size:11px; color:var(--accent); }
+.fridge-confirm button { text-decoration:underline; padding:5px; }
+.fridge-empty { text-align:center; padding:40px 20px; border:1px dashed var(--border); border-radius:10px; margin-bottom:28px; color:#65715c; }
+.fridge-empty h3 { font:21px 'Songti SC','SimSun',serif; margin:18px 0 10px; }
+.fridge-empty p { font-size:12px; color:var(--muted); line-height:1.9; }
+.fridge-category-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 23px; margin-top:20px; }
+.fridge-category-row { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.fridge-category-row input { flex:1; min-width:50px; width:50%; font-size:12px; }
+.fridge-category-row .fridge-confirm { width:100%; }
+.fridge-new-category { display:flex; gap:10px; margin-top:22px; }
+.fridge-new-category input { flex:1; min-width:0; }
+.fridge-match { margin-top:26px; }
+.fridge-match-controls { display:flex; align-items:flex-end; gap:14px; }
+.fridge-match-controls label { flex:1; }
+.fridge-match-controls+.muted { font-size:11px; margin:14px 0 0; }
+.fridge-page button:disabled { cursor:default; }
+.fridge-view-nav { display:flex; gap:8px; margin:0 0 24px; padding-bottom:15px; border-bottom:1px solid var(--border); }
+.fridge-view-nav button { font-size:12px; padding:10px 16px; border-radius:6px; color:var(--muted); }
+.fridge-view-nav button.chosen { background:var(--green); color:var(--surface); }
+.fridge-dialog-overlay { z-index:65; }
+.fridge-dialog { width:660px; max-height:calc(100dvh - 32px); overflow-y:auto; }
+.fridge-dialog .fridge-editor,.fridge-dialog .fridge-categories { border:0; padding:0; margin:0; background:transparent; }
+.fridge-pagination { display:flex; justify-content:center; align-items:center; gap:16px; margin:18px 0; }
+.fridge-pagination>span { font-size:11px; color:var(--muted); }
+.fridge-stock-preview { padding:20px 24px; border:1px solid var(--border); background:var(--surface); border-radius:9px; margin-bottom:20px; }
+.fridge-stock-preview>span { font-size:11px; color:var(--muted); }
+.fridge-stock-preview p { font-size:14px; line-height:1.9; color:var(--green); margin:10px 0 0; overflow-wrap:anywhere; }
+.fridge-match-intro { font-size:12px; line-height:1.9; color:var(--muted); padding:20px 0 0; }
+@media(max-width:650px) { .fridge-dialog { padding:27px 20px; } .fridge-view-nav button { flex:1; font-size:11px; } .fridge-pagination { gap:10px; } .fridge-pagination .secondary { padding:9px 11px; } }
+@media(max-width:1150px) { .fridge-food-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:650px) {
+  .fridge-summary { padding:20px 18px; gap:12px; flex-wrap:wrap; }
+  .fridge-summary>div { gap:12px; }
+  .fridge-summary strong { font-size:29px; }
+  .fridge-editor,.fridge-categories,.fridge-match { padding:20px 17px; }
+  .fridge-form-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+  .fridge-form-grid label:first-child,.fridge-notes { grid-column:1/-1; }
+  .fridge-category-grid { grid-template-columns:1fr; }
+  .fridge-food-grid { grid-template-columns:1fr; gap:12px; }
+  .fridge-form-footer,.fridge-match-controls { align-items:stretch; flex-direction:column; }
+  .fridge-match-controls label { width:100%; }
+  .fridge-section-title { flex-wrap:wrap; }
+  .fridge-tabs button { font-size:11px; padding:9px 11px; }
+  .fridge-filters { gap:8px; }
+  .fridge-filters select { max-width:115px; padding:10px; }
+  .fridge-new-category { flex-wrap:wrap; }
+  .fridge-new-category .secondary { font-size:11px; }
+}
