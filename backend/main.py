@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 import httpx
 from sqlalchemy import create_engine, event
 
-from backend import ai_recipe, auth, douguo_search, meal_plan, recipe_store as store
+from backend import ai_recipe, auth, douguo_search, fridge, meal_plan, recipe_store as store
 from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
@@ -58,8 +58,8 @@ class PasswordChange(BaseModel):
 class Secret(BaseModel):
     password: str = Field(min_length=1, max_length=128)
 class PantryItem(BaseModel):
-    name: str = Field(min_length=1, max_length=60)
-    amount: str = Field(default='', max_length=30)
+    name: str = Field(min_length=1, max_length=100)
+    amount: str = Field(default='', max_length=100)
     unit: str = Field(default='', max_length=10)
 class Match(BaseModel):
     ingredients: list[PantryItem] = []
@@ -97,6 +97,9 @@ def current_user(authorization: str = Header(default='')) -> dict:
     if not user:
         raise HTTPException(401, '请先登录', headers={'WWW-Authenticate': 'Bearer'})
     return user
+
+
+fridge.install(app, engine, current_user)
 
 
 @app.post('/api/auth/register')

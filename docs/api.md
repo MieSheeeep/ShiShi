@@ -108,6 +108,12 @@
 
 名称必填；`amount` 与 `unit` 可为空，表示未记录用量。
 
+完整食品库存见[冰箱管理与兼容升级](fridge-management.md)。新版存在后，Settings 是同一库存的在库投影，已用完条目不参与采购、计划和库存找菜。旧 Settings 读写保持兼容。
+
+采购清单可选布尔字段 `pantry` 表示本次核对认为家中已有，可通过原 `PUT /api/shopping` 调整；兼容旧增强分支的 `at_home` 读取。菜单确认及用量修改规则见[菜单与采购](menu-shopping-flow.md)。
+
+新增鉴权接口：`GET /api/fridge`，`POST /api/fridge/items`，`PUT /api/fridge/items/{id}`，`DELETE /api/fridge/items/{id}`，以及 `POST /api/fridge/categories`、`PATCH /api/fridge/categories/{id}`、`DELETE /api/fridge/categories/{id}`。字段、状态码、迁移和限制见冰箱说明。
+
 ### AI 配置 AiSettings
 
 ```json

@@ -40,8 +40,9 @@ Vue 3 · FastAPI · SQLite · 多账号本地部署
 | 下厨详情 | 查看用料、份数、耗时和备注，勾选已完成步骤 |
 | 今天做什么 | 选好的菜带入下厨页，逐道展示备料与步骤，全部勾完可「完成制作」 |
 | 原图与步骤配图 | 豆果配图跟随步骤，小红书按原始图集展示；图片下载到本地 |
-| 按食材找菜 | 输入现有食材和常备调料，按缺料种类排序并列出缺失材料 |
-| 合并采购清单 | 多选食谱、合并兼容用量、按冰箱库存扣减、查看来源、修改数量和勾选备齐 |
+| 我的冰箱 | 手动录入数量、单位、用途与备注，自定义食品分类，按冷藏/冷冻/常温筛选，用完可恢复；库存与找菜分视图 |
+| 按食材找菜 | 使用在库食材和常备调料，按缺料种类排序并列出缺失材料，保留 AI 推荐入口 |
+| 菜单与采购 | 确认已选菜单后合并用量并按库存扣减；查看来源、修改数量、调整已有/待买归属并勾选备齐 |
 | 账号管理 | 侧栏账号面板可更新 AI 配置与小红书 Cookie、修改密码、退出登录或注销账号 |
 | 清单导出 | 导出为文本文件 |
 | 本地保存 | 食谱、清单与食材设置持久化到 SQLite |
@@ -280,15 +281,17 @@ npm run dev
 ```powershell
 # 项目根目录
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
-node --test tests/recipe-editing.test.mjs tests/daily-content.test.mjs
+node --test tests/recipe-editing.test.mjs tests/daily-content.test.mjs tests/solar-terms.test.mjs tests/fridge-state.test.mjs tests/menu-selection.test.mjs tests/shopping-state.test.mjs
 
 cd frontend
 npm run build
 ```
 
-现有 82 项后端测试、10 项前端逻辑测试，覆盖账号鉴权、用户隔离、封面上传、食谱编辑、每日精选日期、节气日期计算、节气日记、本地图片校验、豆果搜索、调料判定、库存扣减、小红书 Cookie 登录态与 AI 草稿校验，详见 [验证记录](docs/verification.md)。
+现有 93 项后端测试、15 项前端逻辑测试，覆盖账号鉴权、用户隔离、食谱编辑与图片、每日精选与节气、豆果搜索、小红书登录态、AI 草稿、库存迁入与数量扣减，以及菜单草稿和采购核对，详见 [验证记录](docs/verification.md)。
 
 ## 本地数据与备份
+
+冰箱分类、迁入与新旧接口兼容见[冰箱管理](docs/fridge-management.md)，菜单确认及清单核对见[菜单与采购](docs/menu-shopping-flow.md)。
 
 默认数据库为 `data/shishi.db`，首次运行自动创建。停止服务后，同时复制数据库和 `data/media/` 图片目录即可备份；恢复时先停止服务，再恢复这两部分。
 

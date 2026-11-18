@@ -1,4 +1,5 @@
 /* Keep navigation within thumb reach on phones and small tablets. */
+.sidebar nav .mobile-nav-label { display:none; }
 @media (max-width: 768px) {
   .sidebar {
     position: static;
@@ -18,7 +19,7 @@
     inset: auto 0 0;
     z-index: 15;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
     margin: 0;
     padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
@@ -35,11 +36,13 @@
     min-height: 52px;
     padding: 6px 4px;
     border-radius: 10px;
-    font-size: 11px;
+    font-size: 10px;
     white-space: nowrap;
   }
 
   .sidebar nav button svg { width: 21px; height: 21px; }
+  .sidebar nav .nav-label { display: none; }
+  .sidebar nav .mobile-nav-label { display: inline; }
   .sidebar .nav-count, .sidebar .nav-dot { display: none; }
   main { margin-left: 0; }
   .content { padding-bottom: calc(108px + env(safe-area-inset-bottom)); }

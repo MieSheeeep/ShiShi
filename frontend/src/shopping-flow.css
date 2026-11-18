@@ -1,0 +1,65 @@
+.shopping-flow-nav { display:flex; gap:8px; padding-bottom:16px; margin-bottom:28px; border-bottom:1px solid var(--border); }
+.shopping-flow-nav button { padding:10px 15px; border-radius:6px; font-size:12px; color:var(--muted); }
+.shopping-flow-nav button.chosen { color:var(--surface); background:var(--green); }
+.meal-steps { display:flex; gap:25px; font-size:11px; color:var(--muted); margin:0 0 28px; padding-bottom:17px; border-bottom:1px solid var(--border); }
+.meal-steps strong { color:var(--green); font-weight:600; }
+.menu-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; }
+.menu-heading h2,.menu-next h2 { font-size:18px; color:var(--green); font-weight:600; margin:0; }
+.menu-recipe { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px; border:1px solid var(--border); background:var(--surface); border-radius:9px; margin-bottom:12px; }
+.menu-recipe-info { justify-content:flex-start; gap:18px; padding:0; min-width:0; text-align:left; }
+.menu-recipe-info img,.menu-emoji { width:75px; height:65px; border-radius:6px; object-fit:cover; flex-shrink:0; }
+.menu-emoji { display:grid; place-items:center; background:var(--soft); font-size:36px; }
+.menu-recipe-info strong { display:block; font-size:16px; line-height:1.8; color:var(--green); overflow-wrap:anywhere; }
+.menu-recipe-info small { display:block; font-size:11px; color:var(--muted); margin-top:6px; }
+.menu-recipe>.text-button { flex-shrink:0; }
+.menu-next { padding:25px; border:1px solid var(--border); background:var(--surface); border-radius:9px; margin-top:24px; }
+.menu-next p,.menu-replace-confirm p { font-size:12px; line-height:1.9; color:var(--muted); margin:12px 0 20px; }
+.menu-replace-confirm .secondary { margin-left:10px; }
+.menu-empty-actions { display:flex; flex-wrap:wrap; gap:12px; justify-content:center; margin-top:24px; align-items:center; }
+.menu-empty-actions .primary { margin-top:0; }
+.shopping-origin { display:flex; align-items:center; justify-content:space-between; gap:15px; background:var(--green); color:var(--surface); padding:22px 25px; border-radius:9px; margin-bottom:20px; }
+.shopping-origin strong { font-size:14px; }
+.shopping-origin p { font-size:11px; color:#d8dfd0; line-height:1.9; margin:8px 0 0; overflow-wrap:anywhere; }
+.shopping-origin>.text-button { color:var(--surface); flex-shrink:0; }
+.shopping-explanation { display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:20px; }
+.shopping-explanation p { color:var(--muted); font-size:12px; line-height:1.9; margin:0; }
+.shopping-explanation button { flex-shrink:0; }
+.purchase-row { display:flex; align-items:center; gap:16px; padding:19px 0; border-bottom:1px solid var(--border); }
+.purchase-row>input[type=checkbox] { width:17px; height:17px; accent-color:var(--green); flex-shrink:0; }
+.purchase-food { flex:1; min-width:0; }
+.purchase-food>strong { font-size:14px; font-weight:500; overflow-wrap:anywhere; }
+.purchase-food details { font-size:10px; color:var(--muted); margin-top:7px; line-height:1.8; }
+.purchase-food summary { cursor:pointer; }
+.purchase-amount { width:120px; font-size:12px; text-align:right; }
+.purchase-home-button { font-size:11px; padding:9px 11px; border:1px solid var(--border); border-radius:5px; color:var(--green); flex-shrink:0; }
+.shopping-at-home { background:var(--surface); border:1px solid var(--border); border-radius:9px; margin-top:20px; padding:20px 25px; }
+.shopping-at-home>summary { cursor:pointer; color:var(--green); font-size:13px; }
+.home-food-row { display:flex; gap:15px; align-items:center; justify-content:space-between; padding:15px 0 5px; }
+.home-food-row strong { font-weight:500; font-size:13px; }
+.home-food-row small { color:var(--muted); margin-left:15px; font-size:11px; }
+.shopping-complete { margin-top:25px; text-align:center; padding:20px; }
+.shopping-complete>p { color:var(--green); font-size:13px; }
+.shopping-save-state { font-size:10px; margin:16px 0 0; }
+.selection-bar .primary { white-space:nowrap; }
+@media(max-width:650px) {
+  .menu-heading { align-items:flex-start; flex-direction:column; gap:5px; }
+  .menu-recipe { padding:14px 12px; gap:10px; }
+  .menu-recipe-info { gap:12px; }
+  .menu-recipe-info img,.menu-emoji { width:50px; height:50px; }
+  .menu-recipe-info strong { font-size:13px; }
+  .menu-recipe-info small { font-size:10px; }
+  .menu-recipe>.text-button { font-size:10px; }
+  .menu-next { padding:20px; }
+  .meal-steps { gap:14px; font-size:10px; }
+  .shopping-flow-nav button { flex:1; font-size:11px; }
+  .shopping-origin,.shopping-explanation { flex-direction:column; align-items:flex-start; gap:10px; }
+  .shopping-origin { padding:20px; }
+  .purchase-row { display:grid; grid-template-columns:18px minmax(0,1fr) 83px; gap:12px 9px; }
+  .purchase-amount { width:100%; padding:10px 6px; font-size:11px; }
+  .purchase-home-button { grid-column:2/-1; justify-self:start; padding:6px 9px; font-size:10px; }
+  .home-food-row { align-items:flex-start; }
+  .home-food-row small { display:block; margin:5px 0 0; }
+  .shopping-at-home { padding:20px; }
+}
+
+.shopping-row .pantry-toggle { display:block; font-size:11px; padding:4px 0; text-decoration:underline; }
