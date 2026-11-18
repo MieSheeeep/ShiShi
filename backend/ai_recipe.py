@@ -76,6 +76,11 @@ def read_json(text):
 
 def _chat(settings, messages, extra=None):
     """调用 ``/chat/completions``，返回模型输出的文本。"""
+    return _chat_usage(settings, messages, extra)[0]
+
+
+def _chat_usage(settings, messages, extra=None):
+    """调用 ``/chat/completions``，返回 ``(文本, usage 字典)``，供耗时与成本统计。"""
     if not settings.get('key'):
         raise ValueError('还没有配置 AI 接口，请填写 API Key 后再试')
     payload = {'model': settings.get('model') or DEFAULT_MODEL, 'messages': messages, 'temperature': 0.4}
@@ -94,7 +99,8 @@ def _chat(settings, messages, extra=None):
     if response.status_code >= 400:
         raise ValueError('AI 接口返回 %s：%s' % (response.status_code, response.text[:200]))
     try:
-        return response.json()['choices'][0]['message']['content']
+        body = response.json()
+        return body['choices'][0]['message']['content'], body.get('usage') or {}
     except (KeyError, IndexError, TypeError, ValueError):
         raise ValueError('AI 接口返回的结构无法识别，请检查模型名与接口地址')
 
