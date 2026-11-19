@@ -10,9 +10,9 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Upload
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
 import httpx
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 
-from backend import ai_recipe, auth, douguo_search, fridge, meal_plan, recipe_store as store
+from backend import ai_recipe, auth, deploy_guard, douguo_search, fridge, meal_plan, recipe_store as store
 from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
@@ -28,8 +28,7 @@ engine = create_engine(os.getenv('SHISHI_DATABASE_URL', f'sqlite:///{DATA / "shi
 
 @event.listens_for(engine, 'connect')
 def configure_sqlite(dbapi_connection, _connection_record):
-    # 当前 Windows 环境的文件 journal 会使提交不可见，本地运行改用内存 journal。
-    dbapi_connection.execute('PRAGMA journal_mode=MEMORY')
+    deploy_guard.configure_sqlite_connection(dbapi_connection)
 
 
 store.initialize(engine)
@@ -39,6 +38,7 @@ app = FastAPI(title='食拾 · 个人食谱管理', description='账号登录后
 class Credentials(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     password: str = Field(min_length=6, max_length=128)
+    invite_code: str = Field(default='', max_length=128)
 class Link(BaseModel):
     url: str = Field(min_length=1, max_length=20000)
 class ImportSearch(BaseModel):
@@ -102,11 +102,28 @@ def current_user(authorization: str = Header(default='')) -> dict:
 fridge.install(app, engine, current_user)
 
 
+@app.get('/api/health')
+def health():
+    """健康检查：确认应用进程与 SQLite 数据库连接正常。"""
+    with engine.connect() as db:
+        db.execute(text('SELECT 1')).scalar()
+    return {'status': 'ok', 'journal_mode': deploy_guard.sqlite_journal_mode()}
+
+
+@app.get('/api/auth/policy')
+def auth_policy():
+    """返回当前站点的注册策略（是否开放注册、是否需要邀请码）。"""
+    return deploy_guard.register_policy()
+
+
 @app.post('/api/auth/register')
 def register(body: Credentials):
     """注册账号并直接返回登录令牌，新账号会得到默认分组与演示食谱。"""
     try:
+        deploy_guard.check_registration(body.invite_code)
         user = auth.create_user(engine, body.username, body.password)
+    except PermissionError as error:
+        raise HTTPException(403, str(error))
     except LookupError as error:
         raise HTTPException(409, str(error))
     except ValueError as error:
@@ -367,9 +384,13 @@ def get_ai_settings(user: dict = Depends(current_user)):
 @app.put('/api/ai/settings')
 def save_ai_settings(body: AiConfig, user: dict = Depends(current_user)):
     """保存本账号的 AI 配置；key 留空表示沿用已保存的 key。"""
+    try:
+        base = deploy_guard.validate_ai_base_url(body.base)
+    except ValueError as error:
+        raise HTTPException(422, str(error))
     stored = store.read_ai_settings(engine, user['id'])
     store.save_ai_settings(engine, user['id'], {
-        'base': body.base.strip(),
+        'base': base,
         'model': body.model.strip(),
         'key': body.key.strip() or stored['key'],
     })

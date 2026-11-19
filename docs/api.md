@@ -22,9 +22,10 @@
 | --- | --- |
 | 200 | 成功 |
 | 401 | 未登录、令牌失效或用户名密码错误 |
+| 403 | 站点已关闭公开注册（`SHISHI_ALLOW_REGISTER=false`） |
 | 404 | 资源不存在，或不属于当前账号 |
 | 409 | 冲突：用户名已注册、来源链接已收藏、同一分组内重名 |
-| 422 | 请求字段不合法：材料、步骤、图片、封面、标签或密码长度不符合要求；上传图片不是 JPG/PNG/WEBP 或超过 5 MB |
+| 422 | 请求字段不合法：材料、步骤、图片、封面、标签、邀请码、AI 接口地址或密码长度不符合要求；上传图片不是 JPG/PNG/WEBP 或超过 5 MB |
 
 跨账号访问统一按 `404` 处理，不暴露其他用户的数据是否存在。
 
@@ -134,7 +135,9 @@
 
 | 方法 | 路径 | 鉴权 | 说明 |
 | --- | --- | --- | --- |
-| POST | `/api/auth/register` | 否 | 注册账号，返回令牌；新账号自动获得默认分组和 6 道演示食谱 |
+| GET | `/api/health` | 否 | 健康检查，返回 `{"status": "ok", "journal_mode": "..."}` |
+| GET | `/api/auth/policy` | 否 | 返回站点注册策略 `{"allow_register": true, "invite_required": false}` |
+| POST | `/api/auth/register` | 否 | 注册账号，返回令牌；开启 `SHISHI_INVITE_CODE` 时需附带 `invite_code`；新账号自动获得默认分组和 6 道演示食谱 |
 | POST | `/api/auth/login` | 否 | 账号密码登录，返回令牌 |
 | POST | `/api/auth/logout` | 是 | 退出登录，当前令牌失效 |
 | GET | `/api/auth/me` | 是 | 返回当前用户，用于前端恢复会话 |

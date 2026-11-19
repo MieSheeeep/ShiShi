@@ -1,16 +1,25 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Leaf, ArrowRight } from 'lucide-vue-next'
 import { api, setToken } from '../recipeEditing'
 const emit=defineEmits(['authenticated'])
-const mode=ref('login'), username=ref(''), password=ref(''), confirm=ref(''), busy=ref(false), error=ref('')
-const register=computed(()=>mode.value==='register')
-function toggle(){mode.value=register.value?'login':'register';error.value='';confirm.value=''}
+const mode=ref('login'), username=ref(''), password=ref(''), confirm=ref(''), inviteCode=ref(''), busy=ref(false), error=ref('')
+const policy=ref({allow_register:true,invite_required:false})
+const register=computed(()=>mode.value==='register'&&policy.value.allow_register)
+onMounted(async()=>{
+  try{
+    const data=await api('/auth/policy')
+    if(data&&typeof data.allow_register==='boolean')policy.value=data
+    if(!policy.value.allow_register)mode.value='login'
+  }catch{}
+})
+function toggle(){if(!policy.value.allow_register)return;mode.value=register.value?'login':'register';error.value='';confirm.value='';inviteCode.value=''}
 async function submit(){
   if(register.value&&password.value!==confirm.value){error.value='两次输入的密码不一致';return}
   busy.value=true;error.value=''
   try{
-    const data=await api('/auth/'+(register.value?'register':'login'),'POST',{username:username.value,password:password.value})
+    const body=register.value&&policy.value.invite_required?{username:username.value,password:password.value,invite_code:inviteCode.value}:{username:username.value,password:password.value}
+    const data=await api('/auth/'+(register.value?'register':'login'),'POST',body)
     setToken(data.token)
     emit('authenticated',data)
   }catch(e){error.value=e.message}finally{busy.value=false}
@@ -27,10 +36,11 @@ async function submit(){
       <label>用户名<input v-model="username" required minlength="3" maxlength="32" autocomplete="username" placeholder="3-32 个字符，不能包含空格"/></label>
       <label>密码<input v-model="password" type="password" required minlength="6" maxlength="128" :autocomplete="register?'new-password':'current-password'" placeholder="至少 6 个字符"/></label>
       <label v-if="register">确认密码<input v-model="confirm" type="password" required minlength="6" maxlength="128" autocomplete="new-password" placeholder="再输入一次密码"/></label>
+      <label v-if="register&&policy.invite_required">邀请码<input v-model="inviteCode" required maxlength="128" autocomplete="off" placeholder="请输入管理员提供的邀请码"/></label>
       <p v-if="error" class="alert" role="alert">{{error}}</p>
       <button class="primary wide" :disabled="busy">{{busy?'请稍候…':(register?'注册并进入':'登录')}} <ArrowRight :size="16"/></button>
     </form>
-    <p class="auth-switch">{{register?'已经有账号了？':'还没有账号？'}}<button type="button" class="text-button" @click="toggle">{{register?'直接登录':'注册新账号'}}</button></p>
+    <p v-if="policy.allow_register" class="auth-switch">{{register?'已经有账号了？':'还没有账号？'}}<button type="button" class="text-button" @click="toggle">{{register?'直接登录':'注册新账号'}}</button></p>
     <p class="auth-note"><Leaf :size="14"/> 每个账号的食谱、标签和清单相互独立，数据保存在本机。</p>
   </section>
 </div>
