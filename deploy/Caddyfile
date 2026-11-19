@@ -1,0 +1,9 @@
+{$SHISHI_SITE_ADDRESS::80} {
+	encode gzip zstd
+
+	request_body {
+		max_size 10MB
+	}
+
+	reverse_proxy shishi:8000
+}

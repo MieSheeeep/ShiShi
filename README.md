@@ -297,4 +297,4 @@ npm run build
 
 首次升级 V2 会自动生成迁移前数据库备份 `data/shishi.db.pre-v2-时间.bak`，保留已有食谱 ID、内容与图片对应关系。旧记录快照代表迁移时的保存版本。详细字段见 [食谱保存格式](docs/recipe-format.md)。
 
-数据库、虚拟环境、前端依赖和构建产物均已加入 `.gitignore`。服务默认仅监听 `127.0.0.1`。
+数据库、虚拟环境、前端依赖和构建产物均已加入 `.gitignore`。服务默认仅监听 `127.0.0.1`；如需在华为云等 Linux 服务器以 Docker + Caddy 方式最小上线，见 [华为云最小上线部署指南](docs/deploy-huaweicloud.md)。

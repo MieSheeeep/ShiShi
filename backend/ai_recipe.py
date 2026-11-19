@@ -8,6 +8,8 @@ import os
 
 import httpx
 
+from backend.deploy_guard import validate_ai_base_url
+
 DEFAULT_BASE = 'https://api.deepseek.com/v1'
 DEFAULT_MODEL = 'deepseek-chat'
 TIMEOUT = 60
@@ -83,14 +85,16 @@ def _chat_usage(settings, messages, extra=None):
     """调用 ``/chat/completions``，返回 ``(文本, usage 字典)``，供耗时与成本统计。"""
     if not settings.get('key'):
         raise ValueError('还没有配置 AI 接口，请填写 API Key 后再试')
+    base = validate_ai_base_url(settings.get('base') or DEFAULT_BASE) or DEFAULT_BASE
     payload = {'model': settings.get('model') or DEFAULT_MODEL, 'messages': messages, 'temperature': 0.4}
     payload.update(extra or {})
     try:
         response = httpx.post(
-            settings.get('base', DEFAULT_BASE).rstrip('/') + '/chat/completions',
+            base + '/chat/completions',
             headers={'Authorization': 'Bearer ' + settings['key']},
             json=payload,
             timeout=TIMEOUT,
+            follow_redirects=False,
         )
     except httpx.HTTPError as error:
         raise ValueError('连接 AI 接口失败：%s' % error)

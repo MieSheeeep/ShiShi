@@ -1,0 +1,39 @@
+services:
+  shishi:
+    build: .
+    container_name: shishi-app
+    restart: unless-stopped
+    environment:
+      SHISHI_SQLITE_JOURNAL_MODE: ${SHISHI_SQLITE_JOURNAL_MODE:-WAL}
+      SHISHI_ALLOW_REGISTER: ${SHISHI_ALLOW_REGISTER:-true}
+      SHISHI_INVITE_CODE: ${SHISHI_INVITE_CODE:-}
+      SHISHI_ALLOW_PRIVATE_AI_URL: ${SHISHI_ALLOW_PRIVATE_AI_URL:-false}
+      SHISHI_AI_BASE_URL: ${SHISHI_AI_BASE_URL:-}
+      SHISHI_AI_MODEL: ${SHISHI_AI_MODEL:-}
+      SHISHI_AI_API_KEY: ${SHISHI_AI_API_KEY:-}
+      XHS_COOKIE: ${XHS_COOKIE:-}
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "8000"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: shishi-caddy
+    restart: unless-stopped
+    depends_on:
+      shishi:
+        condition: service_healthy
+    environment:
+      SHISHI_SITE_ADDRESS: ${SHISHI_SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
