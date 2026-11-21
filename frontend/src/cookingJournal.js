@@ -1,5 +1,10 @@
 export const effectiveDishes = record => (record?.dishes || []).filter(d => ['success','practice'].includes(d.outcome))
 export const recordPhoto = record => effectiveDishes(record).flatMap(d=>d.photos || [])[0] || ''
+export function previousAttempt(records,key,currentId) {
+  const attempts=sameDishAttempts(records,key),current=attempts.findIndex(r=>r.id===currentId)
+  const record=(current>=0?attempts.slice(0,current):attempts).at(-1)
+  return record?{record,dish:effectiveDishes(record).find(d=>d.dish_key===key)}:null
+}
 export function groupMonths(records) {
   const groups = new Map()
   for (const record of records) { const month=record.cooked_on.slice(0,7); if(!groups.has(month))groups.set(month,[]);groups.get(month).push(record) }
@@ -18,7 +23,7 @@ export function createJournal(request, reactive = value=>value) {
   let epoch=0,queue=Promise.resolve(),completing=null,starting=null,pendingStart=null,filter={page:1,state:'completed'},listEpoch=0
   const cache=new Map(),versions=new Map(),dirty=new Map()
   const alive=e=>e===epoch
-  const remember=record=>{const observed=cache.get(record.id)||reactive(record);if(observed!==record)Object.assign(observed,record);cache.set(record.id,observed);versions.set(record.id,record.version);return observed}
+  const remember=record=>{const observed=cache.get(record.id)||reactive(record);if(record.version<(versions.get(record.id)||0))return observed;if(observed!==record)Object.assign(observed,record);cache.set(record.id,observed);versions.set(record.id,record.version);return observed}
   const fail=(error,e,id)=>{if(alive(e)){state.error=error.status===409?'这条记录已在别处更新。你的输入已保留，请选择恢复服务端版本或用当前输入重试。':error.message||'保存失败，请重试';if(error.status===409)state.conflict={id}}throw error}
   const enqueue=work=>{const next=queue.catch(()=>{}).then(work);queue=next;return next}
   const upsert=record=>{const index=state.records.findIndex(r=>r.id===record.id);if(index>=0)state.records[index]=record;state.drafts=state.drafts.map(r=>r.id===record.id?record:r)}
