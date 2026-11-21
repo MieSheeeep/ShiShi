@@ -1,5 +1,6 @@
 """Account-scoped cooking journal API, installed independently of recipes."""
 from copy import deepcopy
+from hashlib import sha256
 import json
 import re
 from typing import Literal
@@ -17,8 +18,8 @@ def record_upload(engine, user_id, url):
                    {'user': user_id, 'url': url})
 
 
-def new_dish(recipe_id, snapshot, key=None):
-    return {'id': str(uuid4()), 'dish_key': key or f'recipe:{recipe_id}', 'recipe_id': recipe_id,
+def new_dish(recipe_id, snapshot, key):
+    return {'id': str(uuid4()), 'dish_key': key, 'recipe_id': recipe_id,
             'snapshot': snapshot, 'outcome': 'pending', 'note': '', 'photos': [], 'completed_steps': []}
 
 
@@ -46,7 +47,11 @@ def install(app, engine, current_user):
                     raise HTTPException(404, '食谱不存在')
                 snapshot = json.loads(row.body)
                 snapshot['cover'] = snapshot.get('cover') or next(iter(snapshot.get('images', [])), '')
-                dishes.append(new_dish(rid, snapshot))
+                # INTEGER PRIMARY KEY can be reused after deletion; creation identity
+                # survives recipe edits while keeping replacement recipes distinct.
+                identity = json.dumps([rid, snapshot['created_at']], separators=(',', ':'))
+                key = 'recipe:' + sha256(identity.encode('utf-8')).hexdigest()
+                dishes.append(new_dish(rid, snapshot, key))
             if body.manual_name:
                 if body.dish_key:
                     existing = next((d for s in reversed(store.all_sessions(db, user['id']))

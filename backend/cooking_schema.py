@@ -39,11 +39,18 @@ class Create(Dated):
     def valid_uuid(cls, value):
         return str(UUID(value))
 
+    @field_validator('manual_name')
+    @classmethod
+    def nonblank_name(cls, value):
+        if value is None or not value.strip():
+            raise ValueError('补记菜名不能为空')
+        return value.strip()
+
     @model_validator(mode='after')
     def selection(self):
-        if bool(self.recipe_ids) == bool(self.manual_name and self.manual_name.strip()):
+        if bool(self.recipe_ids) == bool(self.manual_name):
             raise ValueError('请选择食谱或填写补记菜名')
-        if len(set(self.recipe_ids)) != len(self.recipe_ids) or any(i <= 0 for i in self.recipe_ids):
+        if len(set(self.recipe_ids)) != len(self.recipe_ids) or any(not 1 <= i <= 2**63 - 1 for i in self.recipe_ids):
             raise ValueError('食谱编号重复或无效')
         if self.dish_key and not self.manual_name:
             raise ValueError('继续练习需填写菜名')

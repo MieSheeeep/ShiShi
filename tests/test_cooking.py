@@ -279,3 +279,43 @@ def test_concurrent_creation_serializes_number_and_idempotency(client):
     assert sessions[0] == sessions[1]
     assert sorted({s['number'] for s in sessions}) == [1, 2, 3]
     assert client.get('/api/cooking-sessions').json()['total'] == 3
+
+
+def test_recipe_key_stable_on_edit_but_distinct_after_reused_id(client):
+    source = recipe(client, '第一道菜')
+    first = finish(client, from_recipes(client, [source['id']]), 'practice')
+    original_key = first['dishes'][0]['dish_key']
+    updated = client.put(f"/api/recipes/{source['id']}", json={**source, 'name': '第一道菜修订'}).json()
+    assert updated['created_at'] == source['created_at']
+    edited_session = from_recipes(client, [source['id']])
+    assert edited_session['dishes'][0]['dish_key'] == original_key
+    assert client.delete(f"/api/recipes/{source['id']}").status_code == 200
+    replacement = recipe(client, '完全不同的菜')
+    assert replacement['id'] == source['id']  # SQLite may reuse a deleted maximum primary key
+    second = finish(client, from_recipes(client, [replacement['id']]))
+    assert second['dishes'][0]['dish_key'] != original_key
+    summary = client.get('/api/cooking-summary').json()
+    assert summary['dishes'] == 2
+    assert not next(a for a in summary['achievements'] if a['id'] == 'try-again')['unlocked']
+    continued = create(client, dish_key=original_key)
+    assert continued['dishes'][0]['dish_key'] == original_key
+    assert continued['dishes'][0]['snapshot']['name'] == '第一道菜修订'
+
+
+def test_whitespace_manual_name_cannot_extend_twenty_recipe_session(client):
+    ids = [recipe(client, f'上限菜{i}')['id'] for i in range(20)]
+    response = client.post('/api/cooking-sessions', json={'client_id': str(uuid4()),
+                           'recipe_ids': ids, 'manual_name': ' \t '})
+    assert response.status_code == 422
+    assert client.get('/api/cooking-sessions').json()['total'] == 0
+    assert create(client, manual_name='  家常饭  ')['dishes'][0]['snapshot']['name'] == '家常饭'
+
+
+@pytest.mark.parametrize('rid', [2**63, 10**100])
+def test_reject_recipe_id_outside_sqlite_integer_range(client, rid):
+    # Disable exception propagation to assert the externally observable 500 regression.
+    import backend.main as main
+    with TestClient(main.app, raise_server_exceptions=False) as c:
+        c.headers['Authorization'] = client.headers['Authorization']
+        response = c.post('/api/cooking-sessions', json={'client_id': str(uuid4()), 'recipe_ids': [rid]})
+    assert response.status_code == 422
