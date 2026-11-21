@@ -65,6 +65,12 @@ PATCH dishes 只接受已有 dish id，以及 outcome、note、photos、complete
 
 useCookingJournal.js 管理API、保存队列、冲突和账号切换，提供 draft、summary、loading、error 及 start/patch/complete/withdraw/refresh。CookingWorkspace.vue 负责跟做与收尾，KitchenFootprints.vue 负责作品/时间/拿手菜视图及记录详情，JournalHome.vue 提供首页继续与最近足迹。新手术语使用少量固定释义；照片上传复用 /api/media。图片不是必须、失败仍能记录。
 
+前端统一入口 `const journal=useCookingJournal()`，返回一个 reactive 对象（不是需要在子组件里逐个 `.value` 的 ref 包）：draft、drafts、records、total、page、summary、loading、saving、error、lastCompleted。动作约定 `loadAccount(userId)`、`reset()`、`refresh()`、`loadRecords({page,state,month,dish_key})`、`start({recipe_ids,manual_name,dish_key,cooked_on})`、`resume(id)`、`patch(patch,id?)`、`complete()`、`withdraw(id,version)`、`markDish(dish_key,status)`。start/resume/patch 返回会话，complete 返回已保存会话或抛出错误；成功才将 draft 清空并写入 lastCompleted。账号变化时旧请求结果必须失效，不能污染新账号页面。
+
+三个组件统一接受 `journal` 对象；CookingWorkspace 发出 browse、recorded、records 事件；KitchenFootprints 发出 browse、cook、manual 事件（再做/补记由组件调用 start 后发出 cook）；JournalHome 发出 cook、records、browse。根 App 负责路由切换，不重复实现保存逻辑。patch 的默认目标为 draft；详情编辑传 id，不抢占进行中的 draft。loadRecords 只影响历史列表，refresh 更新 summary、drafts 与当前历史筛选，并保留尚未成功保存的表单输入。
+
+保存队列串行化，将最新服务端 version 用于下一次更新；网络失败时保留编辑内容和可重试动作，409不能悄悄用服务端内容盖掉用户输入。照片上传期间禁用完成，上传失败保留选前内容；成功上传的地址留在编辑表单中，后续会话保存失败可直接重试。默认不实现音效，不需要增加音频资源。
+
 根 App 仅接入导航与独立组件。主导航首页/做饭/记录/冰箱/我的，菜谱库保留首页和选菜固定入口，周计划、采购及账号仍可在我的与菜单入口访问。保持原菜谱和购物状态，不以重建数据代替升级。
 
 主题使用 R2 色值；日期/月份/纪念号真实生成；空数据不预填假历史。卡片显影、展开、印章动画支持减少动态效果，音效默认关闭。暖色覆盖现有控件而不破坏功能，320/390/桌面验收。
