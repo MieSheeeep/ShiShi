@@ -10,7 +10,7 @@
 
 ## Task 1 — 服务端会话与成长
 
-Files: backend/cooking.py、backend/cooking_store.py、backend/cooking_schema.py、tests/test_cooking.py。公共入口 backend/main.py 安装路由；recipe_store.py 注销清理由集成任务完成。
+Files: backend/cooking.py、backend/cooking_store.py、backend/cooking_schema.py、tests/test_cooking.py。公共入口 backend/main.py 安装路由；账号清理由本模块触发器接入原删除事务。
 
 - [x] 先写并运行集成测试，确认新路由404导致失败；隔离临时数据库。
 - [x] 创建草稿、快照、版本更新、分页筛选、完成/撤回幂等、照片校验、手动补记与标记，按实现设计契约返回。
@@ -30,10 +30,10 @@ Files: frontend/src/useCookingJournal.js、cookingJournal.js、components/Cookin
 
 ## Task 3 — 根应用接入、全站暖色和回归
 
-Files: App.vue、theme.css、mobile-navigation.css、main.js、recipe_store.py、docs/api.md、README.md、docs/verification.md、docs/cooking-records.md。
+Files: App.vue、theme.css、mobile-navigation.css、main.js、docs/api.md、README.md、docs/verification.md、docs/cooking-records.md。
 
-- [ ] 开发前核对 Task 1/2 接口及 emits，新增账号注销记录清理测试并观察失败，再接入事务清理。
-- [ ] 根组件管理账号级 composable；开始做饭真实创建会话；恢复草稿、保存成功转记录；独立记录导航、我的次级入口；保留食谱选菜、冰箱、采购、AI、账号、周计划。
+- [ ] 开发前核对 Task 1/2 接口及 emits；复用 Task1 已覆盖的账号注销触发器清理测试，不重复修改 recipe_store.py。
+- [ ] 根组件管理账号级 composable；开始做饭真实创建会话；恢复草稿、保存成功显示留念卡后可进入记录；独立记录导航、我的次级入口；保留食谱选菜、冰箱、采购、AI、账号、周计划。
 - [ ] 全站暖纸/奶油/焦茶/砖红；正文与按钮对比至少4.5:1；记录页宋体标题、真实日期和纪念号、朱砂印章，控制纹理和动画。
 - [ ] 运行全量pytest、全部Node测试及生产构建；使用独立验收数据库，浏览器真实完成两次同菜、失手再尝试、上传、刷新、撤回、补记、草稿恢复；320/390/桌面截图。
 - [ ] 需求与质量复审全部修复；更新接口、备份说明、截图与验证记录，获取最新main再检查差异。
@@ -44,3 +44,6 @@ Files: App.vue、theme.css、mobile-navigation.css、main.js、recipe_store.py�
 - 基线：123项pytest、15项Node测试及Vite构建通过。
 - Task1：先接口缺失红，再实现；两轮审查定位并修复食谱ID复用、客户端created_at可重用、空白菜名和越界整数。最终需求与质量审查均通过，27项新增pytest实跑通过。
 - 前端组件任务进行中，真实API的独立验收库已准备有图/无图、失手/再尝试和零记录账号，未写入主数据库。
+
+- Task2 首轮需求审查发现刷新旧响应覆盖已保存新版本、重复下厨缺上次心得、作品卡缺菜数与结果；已交实现者补回归并修复。
+- 临时库在线备份后读取核对：6餐与派生摘要一致，未触碰主数据库。
