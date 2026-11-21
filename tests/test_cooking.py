@@ -241,12 +241,13 @@ def test_list_filters_and_limits(client):
 def test_account_deletion_cleans_new_tables(client):
     import backend.main as main
     session = finish(client, create(client))
+    from_recipes(client, [recipe(client)['id']])
     upload(client)
     assert client.put('/api/cooking-dishes', json={'dish_key': session['dishes'][0]['dish_key'], 'status': 'practice'}).status_code == 200
     user_id = client.get('/api/auth/me').json()['id']
     assert client.request('DELETE', '/api/auth/account', json={'password': 'secret123'}).status_code == 200
     with main.engine.connect() as db:
-        for table in ('cooking_sessions', 'cooking_dishes', 'cooking_uploads'):
+        for table in ('cooking_sessions', 'cooking_dishes', 'cooking_uploads', 'cooking_recipe_instances'):
             assert db.execute(text(f'SELECT COUNT(*) FROM {table} WHERE user_id=:user'), {'user': user_id}).scalar_one() == 0
 
 
@@ -290,7 +291,10 @@ def test_recipe_key_stable_on_edit_but_distinct_after_reused_id(client):
     edited_session = from_recipes(client, [source['id']])
     assert edited_session['dishes'][0]['dish_key'] == original_key
     assert client.delete(f"/api/recipes/{source['id']}").status_code == 200
-    replacement = recipe(client, '完全不同的菜')
+    replacement_response = client.post('/api/recipes', json={**source, 'name': '完全不同的菜'})
+    assert replacement_response.status_code == 200
+    replacement = replacement_response.json()
+    assert replacement['created_at'] == source['created_at']
     assert replacement['id'] == source['id']  # SQLite may reuse a deleted maximum primary key
     second = finish(client, from_recipes(client, [replacement['id']]))
     assert second['dishes'][0]['dish_key'] != original_key
@@ -319,3 +323,16 @@ def test_reject_recipe_id_outside_sqlite_integer_range(client, rid):
         c.headers['Authorization'] = client.headers['Authorization']
         response = c.post('/api/cooking-sessions', json={'client_id': str(uuid4()), 'recipe_ids': [rid]})
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize('sid', [0, -1, 2**63, 10**100])
+def test_session_paths_reject_out_of_range_ids(client, sid):
+    import backend.main as main
+    with TestClient(main.app, raise_server_exceptions=False) as c:
+        c.headers['Authorization'] = client.headers['Authorization']
+        url = f'/api/cooking-sessions/{sid}'
+        statuses = [c.get(url).status_code,
+                    c.patch(url, json={'version': 1, 'note': 'x'}).status_code,
+                    c.post(url + '/complete', json={'version': 1}).status_code,
+                    c.post(url + '/withdraw', json={'version': 1}).status_code]
+        assert statuses == [422] * 4

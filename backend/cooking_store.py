@@ -1,6 +1,8 @@
 """SQLite transactions and derived, retractable cooking milestones."""
 import json
 from datetime import datetime, timezone
+from hashlib import sha256
+from uuid import uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import text
@@ -23,10 +25,30 @@ def initialize(engine):
                         'PRIMARY KEY(user_id,dish_key))'))
         db.execute(text('CREATE TABLE IF NOT EXISTS cooking_uploads ('
                         'user_id INTEGER NOT NULL,url TEXT NOT NULL,PRIMARY KEY(user_id,url))'))
+        db.execute(text('CREATE TABLE IF NOT EXISTS cooking_recipe_instances ('
+                        'user_id INTEGER NOT NULL,recipe_id INTEGER NOT NULL,instance_key TEXT UNIQUE NOT NULL,'
+                        'PRIMARY KEY(user_id,recipe_id))'))
+        db.execute(text('CREATE TRIGGER IF NOT EXISTS purge_cooking_recipe_instance AFTER DELETE ON recipes BEGIN '
+                        'DELETE FROM cooking_recipe_instances WHERE user_id=OLD.user_id AND recipe_id=OLD.id; END'))
+        db.execute(text('CREATE TRIGGER IF NOT EXISTS purge_cooking_user_instances AFTER DELETE ON users BEGIN '
+                        'DELETE FROM cooking_recipe_instances WHERE user_id=OLD.id; END'))
         db.execute(text('CREATE TRIGGER IF NOT EXISTS purge_cooking AFTER DELETE ON users BEGIN '
                         'DELETE FROM cooking_sessions WHERE user_id=OLD.id; '
                         'DELETE FROM cooking_dishes WHERE user_id=OLD.id; '
                         'DELETE FROM cooking_uploads WHERE user_id=OLD.id; END'))
+
+
+def recipe_instance(db, user_id, recipe_id):
+    """Use the caller's write lock to allocate one server-owned recipe identity."""
+    params = {'user': user_id, 'recipe': recipe_id}
+    existing = db.execute(text('SELECT instance_key FROM cooking_recipe_instances '
+                               'WHERE user_id=:user AND recipe_id=:recipe'), params).first()
+    if existing:
+        return existing.instance_key
+    key = 'recipe:' + sha256(uuid4().bytes).hexdigest()
+    db.execute(text('INSERT INTO cooking_recipe_instances(user_id,recipe_id,instance_key) '
+                    'VALUES(:user,:recipe,:key)'), {**params, 'key': key})
+    return key
 
 
 def all_sessions(db, user_id):

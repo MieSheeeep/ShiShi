@@ -1,15 +1,16 @@
 """Account-scoped cooking journal API, installed independently of recipes."""
 from copy import deepcopy
-from hashlib import sha256
 import json
 import re
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import uuid4
 
-from fastapi import Depends, HTTPException, Query
+from fastapi import Depends, HTTPException, Path, Query
 from sqlalchemy import text
 
 from backend import cooking_schema as schema, cooking_store as store, media
+
+SessionId = Annotated[int, Path(ge=1, le=2**63 - 1)]
 
 
 def record_upload(engine, user_id, url):
@@ -47,10 +48,7 @@ def install(app, engine, current_user):
                     raise HTTPException(404, '食谱不存在')
                 snapshot = json.loads(row.body)
                 snapshot['cover'] = snapshot.get('cover') or next(iter(snapshot.get('images', [])), '')
-                # INTEGER PRIMARY KEY can be reused after deletion; creation identity
-                # survives recipe edits while keeping replacement recipes distinct.
-                identity = json.dumps([rid, snapshot['created_at']], separators=(',', ':'))
-                key = 'recipe:' + sha256(identity.encode('utf-8')).hexdigest()
+                key = store.recipe_instance(db, user['id'], rid)
                 dishes.append(new_dish(rid, snapshot, key))
             if body.manual_name:
                 if body.dish_key:
@@ -93,12 +91,12 @@ def install(app, engine, current_user):
                 'page': page, 'page_size': page_size}
 
     @app.get('/api/cooking-sessions/{sid}')
-    def detail(sid: int, user: dict = Depends(current_user)):
+    def detail(sid: SessionId, user: dict = Depends(current_user)):
         with engine.connect() as db:
             return store.get(db, user['id'], sid)
 
     @app.patch('/api/cooking-sessions/{sid}')
-    def patch(sid: int, body: schema.Patch, user: dict = Depends(current_user)):
+    def patch(sid: SessionId, body: schema.Patch, user: dict = Depends(current_user)):
         with engine.begin() as db:
             db.exec_driver_sql('BEGIN IMMEDIATE')
             session = store.get(db, user['id'], sid)
@@ -151,11 +149,11 @@ def install(app, engine, current_user):
             return session
 
     @app.post('/api/cooking-sessions/{sid}/complete')
-    def complete(sid: int, body: schema.Version, user: dict = Depends(current_user)):
+    def complete(sid: SessionId, body: schema.Version, user: dict = Depends(current_user)):
         return transition(sid, body, user, 'completed')
 
     @app.post('/api/cooking-sessions/{sid}/withdraw')
-    def withdraw(sid: int, body: schema.Version, user: dict = Depends(current_user)):
+    def withdraw(sid: SessionId, body: schema.Version, user: dict = Depends(current_user)):
         return transition(sid, body, user, 'withdrawn')
 
     @app.get('/api/cooking-summary')
