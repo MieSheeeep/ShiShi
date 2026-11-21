@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 import httpx
 from sqlalchemy import create_engine, event, text
 
-from backend import ai_recipe, auth, deploy_guard, douguo_search, fridge, meal_plan, recipe_store as store
+from backend import ai_recipe, auth, cooking, deploy_guard, douguo_search, fridge, meal_plan, recipe_store as store
 from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
@@ -100,6 +100,7 @@ def current_user(authorization: str = Header(default='')) -> dict:
 
 
 fridge.install(app, engine, current_user)
+cooking.install(app, engine, current_user)
 
 
 @app.get('/api/health')
@@ -181,7 +182,9 @@ def upload_media(file: UploadFile = File(...), user: dict = Depends(current_user
     """上传封面图，返回可在食谱中引用的本地地址。"""
     body = file.file.read(5_000_001)
     try:
-        return {'url': save_upload(body)}
+        url = save_upload(body)
+        cooking.record_upload(engine, user['id'], url)
+        return {'url': url}
     except ValueError as error:
         raise HTTPException(422, str(error))
 
