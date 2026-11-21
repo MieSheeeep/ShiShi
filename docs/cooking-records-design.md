@@ -18,14 +18,14 @@
   "state": "in_progress", "cooked_on": "2026-11-21", "title": "", "note": "",
   "started_at": "UTC ISO timestamp", "completed_at": null, "updated_at": "UTC ISO timestamp",
   "dishes": [{
-    "id": "稳定UUID", "dish_key": "recipe:7", "recipe_id": 7,
+    "id": "稳定UUID", "dish_key": "recipe:<64位实例哈希，示例简写>", "recipe_id": 7,
     "snapshot": {"name": "番茄炒蛋", "cover": "", "emoji": "🍅", "ingredients": [], "steps": [], "notes": ""},
     "outcome": "pending", "note": "", "photos": [], "completed_steps": []
   }]
 }
 ```
 
-快照从账号自己的已保存食谱复制，不能由客户端覆盖；手动补记生成独立 manual:UUID 标识，可选择已有 dish_key 继续练习，同一账号中验证关联。食谱删除不清理历史快照或 dish_key。只允许自己的真实上传 /api/media 图片作为 photos，食谱封面只作明确标注的参考，不伪装用户成品。
+快照从账号自己的已保存食谱复制，不能由客户端覆盖；菜品 dish_key 对前端是不透明字符串，绑定服务端随机生成的食谱实例身份。不能只使用可能被 SQLite 重用的整数 ID，也不能依赖客户端能提供的 created_at。使用模块私有 cooking_recipe_instances 表保存当前账号/食谱对应的随机实例 key；食谱删除触发器仅删除当前映射，保留所有历史快照与 key，后来 ID 复用会生成全新 key。修改原食谱仍属于同菜。手动补记生成独立 manual:UUID 标识，可选择已有 dish_key 继续练习，同一账号中验证关联。只允许自己的真实上传 /api/media 图片作为 photos，食谱封面只作明确标注的参考，不伪装用户成品。
 
 PATCH dishes 只接受已有 dish id，以及 outcome、note、photos、completed_steps；未知、重复 id 或不存在的步骤拒绝。outcome 为 pending/success/practice/skipped。完成要求每道菜结果已确认，至少一道 success/practice，不强制勾完步骤。已完成记录可修改心得/日期/结果，但不能把所有菜改为未做；误记使用撤回。
 
@@ -55,7 +55,7 @@ PATCH dishes 只接受已有 dish id，以及 outcome、note、photos、complete
   "meals": 0, "dishes": 0,
   "level": {"number": 1, "title": "初入厨房", "next_at": 1, "remaining": 1},
   "achievements": [{"id": "first-fire", "title": "第一次开火", "description": "留下一餐实际尝试", "unlocked": false, "session_id": null, "unlocked_at": null}],
-  "repertoire": [{"dish_key": "recipe:7", "name": "番茄炒蛋", "cover": "", "attempts": 1, "successes": 0, "last_note": "少放盐", "last_cooked_on": "2026-11-21", "status": "tried", "sessions": [1]}]
+  "repertoire": [{"dish_key": "recipe:<64位实例哈希，示例简写>", "name": "番茄炒蛋", "cover": "", "attempts": 1, "successes": 0, "last_note": "少放盐", "last_cooked_on": "2026-11-21", "status": "tried", "sessions": [1]}]
 }
 ```
 

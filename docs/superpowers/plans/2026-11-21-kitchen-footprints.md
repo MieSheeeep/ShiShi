@@ -12,11 +12,11 @@
 
 Files: backend/cooking.py、backend/cooking_store.py、backend/cooking_schema.py、tests/test_cooking.py。公共入口 backend/main.py 安装路由；recipe_store.py 注销清理由集成任务完成。
 
-- [ ] 先写并运行集成测试，确认新路由404导致失败；隔离临时数据库。
-- [ ] 创建草稿、快照、版本更新、分页筛选、完成/撤回幂等、照片校验、手动补记与标记，按实现设计契约返回。
-- [ ] 测试跨账号拒绝、删食谱仍保留快照、真实日期、部分失手与跳过、旧version冲突、重复完成与撤回、四印章追溯、等级阈值、备份后读取一致。
-- [ ] 运行 `.venv/Scripts/python.exe -m pytest tests/test_cooking.py -q -p no:cacheprovider` 全绿，自审、提交，仅提交本任务文件。
-- [ ] 独立需求审查通过后再做独立质量审查；修复后复核。
+- [x] 先写并运行集成测试，确认新路由404导致失败；隔离临时数据库。
+- [x] 创建草稿、快照、版本更新、分页筛选、完成/撤回幂等、照片校验、手动补记与标记，按实现设计契约返回。
+- [x] 测试跨账号拒绝、删食谱仍保留快照、真实日期、部分失手与跳过、旧version冲突、重复完成与撤回、四印章追溯、等级阈值、备份后读取一致。
+- [x] 运行 `.venv/Scripts/python.exe -m pytest tests/test_cooking.py -q -p no:cacheprovider` 全绿，自审、提交，仅提交本任务文件。
+- [x] 独立需求审查通过后再做独立质量审查；修复后复核。
 
 ## Task 2 — 记录与跟做组件
 
@@ -38,3 +38,9 @@ Files: App.vue、theme.css、mobile-navigation.css、main.js、recipe_store.py�
 - [ ] 运行全量pytest、全部Node测试及生产构建；使用独立验收数据库，浏览器真实完成两次同菜、失手再尝试、上传、刷新、撤回、补记、草稿恢复；320/390/桌面截图。
 - [ ] 需求与质量复审全部修复；更新接口、备份说明、截图与验证记录，获取最新main再检查差异。
 - [ ] 提交并推送功能分支，交付PR（未获本轮明确合并请求时不自动合main），明确验证范围与未外调模型的限制。
+
+## 执行记录
+
+- 基线：123项pytest、15项Node测试及Vite构建通过。
+- Task1：先接口缺失红，再实现；两轮审查定位并修复食谱ID复用、客户端created_at可重用、空白菜名和越界整数。最终需求与质量审查均通过，27项新增pytest实跑通过。
+- 前端组件任务进行中，真实API的独立验收库已准备有图/无图、失手/再尝试和零记录账号，未写入主数据库。
