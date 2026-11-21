@@ -1,0 +1,12 @@
+<script setup>
+import { computed } from 'vue'
+import { ArrowUpRight, Flame } from 'lucide-vue-next'
+import { recordPhoto, effectiveDishes } from '../cookingJournal.js'
+import '../kitchen-journal.css'
+const props=defineProps({journal:{type:Object,required:true},recipes:{type:Array,default:()=>[]}})
+const emit=defineEmits(['cook','records','browse','start'])
+const recent=computed(()=>props.journal.recentRecord)
+const suggestion=computed(()=>props.recipes[0])
+async function continueCooking(){try{if(!props.journal.draft&&props.journal.drafts[0])await props.journal.resume(props.journal.drafts[0].id);emit('cook')}catch{}}
+</script>
+<template><section class="kj kj-home"><div class="kj-home-copy"><span class="kj-eyebrow">YOUR KITCHEN, YOUR STORY</span><h2>日子有烟火，<br>手艺有来处。</h2><p>{{ journal.draft||journal.drafts.length ? '灶边还有一餐，等你回来。' : '从一道菜开始，把今天留在厨房里。' }}</p><button v-if="journal.draft||journal.drafts.length" class="kj-primary" @click="continueCooking"><Flame :size="18" /> 继续这顿饭</button><button v-else class="kj-primary" @click="emit('browse')">开始做饭 <ArrowUpRight :size="18" /></button><button class="kj-link" @click="emit('browse')">去菜谱库选菜</button><p v-if="journal.summary.meals" class="kj-home-goal">已留下 {{ journal.summary.meals }} 餐 · {{ journal.summary.level.title }}<br>{{ journal.summary.level.remaining ? `再留下 ${journal.summary.level.remaining} 餐，走向下一段厨房日常。` : '继续积攒属于自己的拿手菜。' }}</p><p v-else class="kj-home-goal">今天的小目标：认真试一道菜，不必一次就完美。</p></div><button v-if="recent" class="kj-home-memory" @click="emit('records')"><img v-if="recordPhoto(recent)" :src="recordPhoto(recent)" alt="最近一餐的真实成品照片" /><span v-else class="kj-word-art">{{ effectiveDishes(recent).map(d=>d.snapshot.name).join(' · ') }}</span><span class="kj-memory-caption"><small>最近的厨房足迹 · {{ recent.cooked_on }}</small><strong>{{ recent.title||effectiveDishes(recent).map(d=>d.snapshot.name).join('、') }}</strong><span>{{ recent.note||'这一餐，留在这里。' }}</span></span></button><div v-else-if="suggestion" class="kj-home-memory"><img v-if="suggestion.cover" :src="suggestion.cover" :alt="suggestion.name+'食谱参考图'" /><div v-else class="kj-word-art">{{ suggestion.emoji||'灶' }}</div><div class="kj-memory-caption"><small>从收藏里开始 · 食谱参考，不是我的成品</small><strong>{{ suggestion.name }}</strong><button @click="emit('start',suggestion.id)">今天试这道 →</button></div></div><div v-else class="kj-home-blank"><span>一餐一印</span><p>第一张作品，<br>留给亲手做的你。</p></div></section></template>
