@@ -8,21 +8,35 @@ import DailyFeature from './components/DailyFeature.vue'
 import AiSetup from './components/AiSetup.vue'
 import AccountPanel from './components/AccountPanel.vue'
 import MealPlan from './components/MealPlan.vue'
+import JournalHome from './components/JournalHome.vue'
+import CookingWorkspace from './components/CookingWorkspace.vue'
+import KitchenFootprints from './components/KitchenFootprints.vue'
+import { useCookingJournal } from './useCookingJournal.js'
 import { blankRecipe, api, clearToken, getToken, onUnauthorized } from './recipeEditing'
 import FridgeManager from './components/FridgeManager.vue'
 import MenuReview from './components/MenuReview.vue'
 import { menuRecipes, restoreMenu, saveMenu } from './menuSelection'
 import { setAtHome, editAmount } from './shoppingState'
-import { Leaf, BookOpen, Refrigerator, ShoppingBasket, Plus, Search, ArrowUpRight, Clock3, Users, X, Check, Link, Pencil, Trash2, ArrowRight, ChefHat, Flame, Download, Sparkles, Settings, CalendarDays } from 'lucide-vue-next'
-const page=ref('recipes'), recipes=ref([]), query=ref(''), activeTags=ref([]), catalog=ref({groups:[],tags:[]}), tagManager=ref(false), selected=ref([]), detail=ref(null), editor=ref(null), importer=ref(false), url=ref(''), keyword=ref(''), aiPrompt=ref(''), importMeta=ref(null), busy=ref(false), notice=ref(''), error=ref(''), shopping=ref([]), have=ref([]), staples=ref([]), pantryStart=ref('inventory'), done=ref({}), barClosed=ref(false)
-const menu=ref([])
+import { Leaf, BookOpen, Refrigerator, ShoppingBasket, Plus, Search, ArrowUpRight, Clock3, X, Check, Link, Pencil, Trash2, ArrowRight, ChefHat, Download, Sparkles, Settings, CalendarDays, House, NotebookPen, UserRound } from 'lucide-vue-next'
+const page=ref('home'), recipes=ref([]), query=ref(''), activeTags=ref([]), catalog=ref({groups:[],tags:[]}), tagManager=ref(false), selected=ref([]), detail=ref(null), editor=ref(null), importer=ref(false), url=ref(''), keyword=ref(''), aiPrompt=ref(''), importMeta=ref(null), busy=ref(false), notice=ref(''), error=ref(''), shopping=ref([]), have=ref([]), staples=ref([]), pantryStart=ref('inventory'), done=ref({}), barClosed=ref(false)
+const journal=useCookingJournal(), journalStarting=ref(false)
+const selectionVisible=computed(()=>['home','recipes','pantry','plan'].includes(page.value))
+const cookingBusy=computed(()=>busy.value||journalStarting.value||journal.finalizing||journal.saving)
 const aiSetup=ref(false), accountOpen=ref(false), aiDishes=ref([]), aiBusy=ref(false), aiError=ref(''), aiOpen=ref(true)
-const cookRecipes=computed(()=>recipes.value.filter(r=>menu.value.includes(r.id)))
-const cookTotal=computed(()=>cookRecipes.value.reduce((sum,r)=>sum+r.steps.length,0))
-const cookDone=computed(()=>cookRecipes.value.reduce((sum,r)=>sum+r.steps.filter(s=>done.value[s.id]).length,0))
 const user=ref(null), authReady=ref(false)
-const nav=[['recipes','首页',BookOpen],['pantry','冰箱里有什么',Refrigerator],['today','今天做什么',ChefHat],['plan','每周饮食计划',CalendarDays],['shopping','采购清单',ShoppingBasket]]
-watch(page,()=>window.scrollTo({top:0}))
+const nav=[['home','首页',House],['today','做饭',ChefHat],['records','记录',NotebookPen],['pantry','冰箱',Refrigerator],['mine','我的',UserRound]]
+const pageLabel=computed(()=>({recipes:'菜谱库',menu:'本次菜单',shopping:'采购清单',plan:'每周饮食计划'})[page.value]||nav.find(n=>n[0]===page.value)?.[1])
+watch(page,(value)=>{window.scrollTo({top:0});if(value==='records')journal.loadRecords({page:1,state:'completed',month:'',dish_key:''}).catch(()=>{})})
+function navigate(value){page.value=value;error.value='';if(value==='pantry')pantryStart.value='inventory'}
+function openCooking(){if(user.value&&journal.accountId===user.value.id&&journal.draft)page.value='today'}
+async function beginCooking(ids){
+  if(cookingBusy.value||!user.value)return
+  const account=user.value.id
+  journalStarting.value=true
+  try{const session=await journal.start({recipe_ids:[...ids]});if(session&&user.value?.id===account&&journal.accountId===account){page.value='today';detail.value=null}}
+  catch(e){if(user.value?.id===account)error.value=e.message}
+  finally{if(user.value?.id===account)journalStarting.value=false}
+}
 const filterGroups=computed(()=>catalog.value.groups.map(g=>({...g,tags:catalog.value.tags.filter(t=>t.group_id===g.id)})).filter(g=>g.tags.length))
 function toggleTag(id){activeTags.value=activeTags.value.includes(id)?activeTags.value.filter(t=>t!==id):[...activeTags.value,id]}
 const filtered=computed(()=>recipes.value.filter(r=>activeTags.value.every(id=>r.tag_ids.includes(id))&&(r.name+r.ingredients.map(i=>i.name).join('')+r.tags.map(t=>t.group+t.name).join('')).includes(query.value)))
@@ -38,13 +52,12 @@ const completed=computed(()=>buyList.value.filter(i=>i.checked).length)
 const clearConfirm=ref(false),cancelConfirm=ref(false),shoppingSaving=ref(false)
 watch(completed,()=>{if(completed.value!==buyList.value.length)clearConfirm.value=false})
 function flash(msg){notice.value=msg;setTimeout(()=>notice.value='',3500)}
-async function load(){const [rows,tags]=await Promise.all([api('/recipes'),api('/tags')]);recipes.value=rows;catalog.value=tags;activeTags.value=activeTags.value.filter(id=>tags.tags.some(t=>t.id===id));if(detail.value)detail.value=rows.find(r=>r.id===detail.value.id)||null}
-async function start(){try{await load();selected.value=restoreMenu(localStorage,user.value.id).filter(id=>recipes.value.some(r=>r.id===id));shopping.value=await api('/shopping');const s=await api('/settings');have.value=s.ingredients;staples.value=s.staples}catch(e){error.value=e.message}}
+async function load(){const account=user.value?.id;const [rows,tags]=await Promise.all([api('/recipes'),api('/tags')]);if(!account||user.value?.id!==account)return;recipes.value=rows;catalog.value=tags;activeTags.value=activeTags.value.filter(id=>tags.tags.some(t=>t.id===id));if(detail.value)detail.value=rows.find(r=>r.id===detail.value.id)||null}
+async function start(){const account=user.value?.id;if(!account)return;try{await Promise.all([load(),journal.loadAccount(account)]);if(user.value?.id!==account)return;selected.value=restoreMenu(localStorage,account).filter(id=>recipes.value.some(r=>r.id===id));const [items,settings]=await Promise.all([api('/shopping'),api('/settings')]);if(user.value?.id!==account)return;shopping.value=items;have.value=settings.ingredients;staples.value=settings.staples}catch(e){if(user.value?.id===account)error.value=e.message}}
 function inventoryChanged(settings){have.value=settings.ingredients;staples.value=settings.staples;aiDishes.value=[]}
-function leave(){user.value=null;page.value='recipes';pantryStart.value='inventory';recipes.value=[];catalog.value={groups:[],tags:[]};shopping.value=[];selected.value=[];menu.value=[];done.value={};managing.value=false;picked.value=[];deleteConfirm.value=false;showMenu.value=false;detail.value=null;editor.value=null;tagManager.value=false;importer.value=false;have.value=[];staples.value=[];error.value='';activeTags.value=[];query.value='';listPage.value=1;barClosed.value=false;aiSetup.value=false;accountOpen.value=false;aiDishes.value=[];aiError.value=''}
-async function checkAi(){try{const data=await api('/ai/settings');aiSetup.value=!data.configured}catch{}}
-function authenticated(data){user.value=data.user;start().then(checkAi)}
-async function boot(){if(!getToken()){authReady.value=true;return}try{user.value=await api('/auth/me')}catch{clearToken()}authReady.value=true;if(user.value){await start();await checkAi()}}
+function leave(){journal.reset();journalStarting.value=false;user.value=null;page.value='home';pantryStart.value='inventory';recipes.value=[];catalog.value={groups:[],tags:[]};shopping.value=[];selected.value=[];done.value={};managing.value=false;picked.value=[];deleteConfirm.value=false;showMenu.value=false;detail.value=null;editor.value=null;tagManager.value=false;importer.value=false;have.value=[];staples.value=[];error.value='';activeTags.value=[];query.value='';listPage.value=1;barClosed.value=false;aiSetup.value=false;accountOpen.value=false;aiDishes.value=[];aiError.value=''}
+async function authenticated(data){leave();user.value=data.user;await start()}
+async function boot(){if(!getToken()){authReady.value=true;return}try{user.value=await api('/auth/me')}catch{clearToken()}authReady.value=true;if(user.value)await start()}
 async function signOut(){try{await api('/auth/logout','POST')}catch{}clearToken();leave()}
 onUnauthorized(leave)
 onMounted(boot)
@@ -55,7 +68,7 @@ async function searchImport(){busy.value=true;error.value='';try{const r=await a
 async function nextImport(){busy.value=true;error.value='';try{const r=await api('/imports/search','POST',{keyword:importMeta.value.keyword,index:importMeta.value.index+1});editor.value=r.draft;importMeta.value=r.meta}catch(e){error.value=e.message}finally{busy.value=false}}
 async function aiGenerate(){busy.value=true;error.value='';try{editor.value=await api('/imports/generate','POST',{prompt:aiPrompt.value});importMeta.value=null;importer.value=false;flash('AI 已生成草稿，请核对后保存')}catch(e){error.value=e.message}finally{busy.value=false}}
 async function save(value){busy.value=true;error.value='';try{const r=value||editor.value;await api('/recipes'+(r.id?'/'+r.id:''),r.id?'PUT':'POST',r);editor.value=null;importMeta.value=null;await load();flash('已保存到我的食谱')}catch(e){error.value=e.message}finally{busy.value=false}}
-async function remove(r){if(!confirm('确定删除「'+r.name+'」吗？'))return;try{await api('/recipes/'+r.id,'DELETE');detail.value=null;selected.value=selected.value.filter(id=>id!==r.id);menu.value=menu.value.filter(id=>id!==r.id);await load();flash('食谱已删除')}catch(e){error.value=e.message}}
+async function remove(r){if(!confirm('确定删除「'+r.name+'」吗？'))return;try{await api('/recipes/'+r.id,'DELETE');detail.value=null;selected.value=selected.value.filter(id=>id!==r.id);await load();flash('食谱已删除')}catch(e){error.value=e.message}}
 function toggle(id){
   if(selected.value.includes(id)){selected.value=selected.value.filter(x=>x!==id);return}
   selected.value=[...selected.value,id];barClosed.value=false
@@ -71,9 +84,7 @@ const managing=ref(false), picked=ref([]), deleteConfirm=ref(false)
 function startManage(){managing.value=true;picked.value=[];deleteConfirm.value=false}
 function exitManage(){managing.value=false;picked.value=[];deleteConfirm.value=false}
 function pickRecipe(id){picked.value=picked.value.includes(id)?picked.value.filter(x=>x!==id):[...picked.value,id];deleteConfirm.value=false}
-async function removePicked(){busy.value=true;error.value='';try{const ids=picked.value.slice();for(const id of ids)await api('/recipes/'+id,'DELETE');selected.value=selected.value.filter(id=>!ids.includes(id));menu.value=menu.value.filter(id=>!ids.includes(id));exitManage();await load();flash(`已删除 ${ids.length} 道食谱`)}catch(e){error.value=e.message}finally{busy.value=false}}
-function clearToday(){menu.value=[];done.value={};flash('这顿饭已清空')}
-function finishCooking(){menu.value=[];done.value={};flash('这顿饭做好了，开饭吧')}
+async function removePicked(){busy.value=true;error.value='';try{const ids=picked.value.slice();for(const id of ids)await api('/recipes/'+id,'DELETE');selected.value=selected.value.filter(id=>!ids.includes(id));exitManage();await load();flash(`已删除 ${ids.length} 道食谱`)}catch(e){error.value=e.message}finally{busy.value=false}}
 function goPantry(){pantryStart.value='match';page.value='pantry'}
 async function generate(){busy.value=true;clearConfirm.value=false;cancelConfirm.value=false;try{shopping.value=await api('/shopping','POST',{ids:selected.value});page.value='shopping';detail.value=null;flash('已合并采购清单')}catch(e){error.value=e.message}finally{busy.value=false}}
 async function aiSuggest(){aiBusy.value=true;aiError.value='';try{const data=await api('/ai/suggest','POST',{ingredients:have.value,staples:staples.value});aiDishes.value=data.dishes;aiOpen.value=true}catch(e){aiError.value=e.message}finally{aiBusy.value=false}}
@@ -89,21 +100,28 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
 <template>
 <div v-if="!authReady" class="auth-screen"><span class="muted">正在恢复会话…</span></div>
 <LoginView v-else-if="!user" @authenticated="authenticated"/>
-<div v-else class="layout" :class="{'has-selection':selected.length}">
+<div v-else class="layout" :class="{'has-selection':selected.length&&selectionVisible}">
   <aside class="sidebar">
-    <a class="brand" href="#" @click.prevent="page='recipes'"><span class="brand-symbol"><Leaf :size="25"/></span><span>食拾<small>SHI SHI</small></span></a>
+    <a class="brand" href="#" @click.prevent="page='home'"><span class="brand-symbol"><Leaf :size="25"/></span><span>食拾<small>SHI SHI</small></span></a>
     <p class="sidebar-label">我的厨房</p>
-    <nav aria-label="厨房导航"><button v-for="[id,label,icon] in nav" :key="id" :class="{active:page===id||(id==='shopping'&&page==='menu')}" :aria-current="page===id||(id==='shopping'&&page==='menu')?'page':undefined" @click="page=id;error='';if(id==='pantry')pantryStart='inventory' " :aria-label="label"><component :is="icon" :size="19"/><span class="nav-label">{{label}}</span><span class="mobile-nav-label" aria-hidden="true">{{({recipes:"首页",pantry:"冰箱",today:"做饭",plan:"周计划",shopping:"采购"})[id]}}</span><span v-if="id==='recipes'" class="nav-count">{{recipes.length}}</span><span v-if="id==='shopping'&&shopping.length" class="nav-dot"></span></button></nav>
+    <nav aria-label="厨房导航"><button v-for="[id,label,icon] in nav" :key="id" :class="{active:page===id}" :aria-current="page===id?'page':undefined" @click="navigate(id)" :aria-label="label"><component :is="icon" :size="19"/><span class="nav-label">{{label}}</span><span class="mobile-nav-label" aria-hidden="true">{{label}}</span></button></nav>
     <div class="sidebar-note"><span>一餐一饭，好好生活。</span><p>把散落的好味道，<br>收进自己的小厨房。</p><Leaf :size="40" stroke-width="1"/></div>
     <div class="profile"><span class="avatar">{{user.username.slice(0,1)}}</span><div>{{user.username}}<small><i></i> 已登录 · 数据保存在本机</small></div><button class="icon-button" @click="accountOpen=true" aria-label="账号管理" title="账号管理"><Settings :size="16"/></button></div>
   </aside>
   <main>
-    <header class="topbar"><span>我的厨房 <span class="slash">/</span> {{page==='menu'?'本次菜单':nav.find(n=>n[0]===page)?.[1]}}</span><span class="top-right"><span class="top-tip"><Leaf :size="14"/> 每一份收藏，都是下一餐的灵感</span><span class="top-account"><i></i>{{user.username}}</span></span></header>
+    <header class="topbar"><span>我的厨房 <span class="slash">/</span> {{pageLabel}}</span><span class="top-right"><span class="top-tip"><Leaf :size="14"/> 每一份收藏，都是下一餐的灵感</span><span class="top-account"><i></i>{{user.username}}</span></span></header>
     <div class="content">
       <div v-if="error&&!editor&&!importer" class="alert" role="alert">{{error}}<button @click="error=''">×</button></div>
-      <template v-if="page==='recipes'">
-        <section class="page-heading"><div><div class="eyebrow">A TASTE OF EVERYDAY</div><h1>今天，吃点好的<span class="title-dot">。</span></h1><p>顺着时令，发现一道好味道。</p></div><button class="primary" @click="importer=true;error='' "><Plus :size="18"/> 导入食谱</button></section>
+      <template v-if="page==='home'">
+        <section class="page-heading"><div><div class="eyebrow">A TASTE OF EVERYDAY</div><h1>今天，也好好吃饭<span class="title-dot">。</span></h1><p>留住烟火，也留住一点点进步。</p></div><button class="secondary" @click="page='recipes'"><BookOpen :size="17"/> 菜谱库</button></section>
+        <p v-if="journal.loading" class="muted" role="status">正在翻开厨房手帐…</p>
+        <div v-if="journal.error" class="alert" role="alert"><span>{{journal.error}}</span><button :disabled="journal.loading" @click="journal.refresh()">重新加载</button></div>
+        <fieldset class="journal-home-wrap" :disabled="cookingBusy"><JournalHome :journal="journal" :recipes="recipes" @cook="openCooking" @records="page='records'" @browse="page='recipes'" @start="beginCooking([$event])"/></fieldset>
+        <section class="home-library-entry"><div><h2>下一餐，从收藏里选</h2><p>{{recipes.length}} 道收藏的做法，等你慢慢尝试。</p></div><button class="primary" @click="page='recipes'">去菜谱库选菜 <ArrowRight :size="16"/></button></section>
         <DailyFeature @collect="edit"/>
+      </template>
+      <template v-if="page==='recipes'">
+        <section class="page-heading"><div><div class="eyebrow">YOUR RECIPE COLLECTION</div><h1>收藏的好味道<span class="title-dot">。</span></h1><p>选几道菜，开始今天的一餐。</p></div><button class="primary" @click="importer=true;error=''"><Plus :size="18"/> 导入食谱</button></section>
         <section class="library-tools"><div class="section-title"><h2>收藏的好味道</h2><span>{{recipes.length}} 道食谱</span></div><label class="search"><Search :size="17"/><input v-model="query" placeholder="搜索菜名、食材或标签" aria-label="搜索食谱"/></label></section>
         <div class="filter-toolbar"><div class="filter-groups"><div v-for="group in filterGroups" :key="group.id" class="tag-choice-group"><strong>{{group.name}}</strong><div class="tag-options"><button v-for="tag in group.tags" :key="tag.id" :class="{chosen:activeTags.includes(tag.id)}" :aria-pressed="activeTags.includes(tag.id)" @click="toggleTag(tag.id)">{{tag.name}}</button></div></div><button v-if="activeTags.length" class="text-button" @click="activeTags=[]">清除标签筛选</button></div><div class="library-actions"><button class="text-button" @click="tagManager=true">管理标签</button><button class="text-button" @click="edit()"><Plus :size="15"/>手动录入食谱</button></div></div>
         <div class="filter-row"><span class="muted">已选 {{activeTags.length}} 个标签 · 同时满足</span><button v-if="!managing" class="secondary" @click="startManage"><Trash2 :size="15"/> 批量删除</button></div>
@@ -115,7 +133,21 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
       <FridgeManager v-if="page==='pantry'" :recipes="recipes" :selected="selected" :initial-view="pantryStart" @change="inventoryChanged" @detail="detail=$event" @select="toggle">
         <template #suggestions><section class="fridge-match"><div class="fridge-section-title"><h2>用现有食材，换点新灵感</h2><button class="secondary" :disabled="aiBusy||!have.length&&!staples.length" @click="aiSuggest"><Sparkles :size="17"/>{{aiBusy?'AI 正在想…':'让 AI 推荐'}}</button></div><div v-if="aiError" class="alert" role="alert">{{aiError}}</div><div v-if="aiDishes.length" class="ai-dishes"><div class="ai-dishes-head"><strong>AI 推荐</strong><button class="text-button" @click="aiOpen=!aiOpen">{{aiOpen?'收起':'展开'}}</button></div><template v-if="aiOpen"><article v-for="dish in aiDishes" :key="dish.name" class="ai-dish"><div><h3>{{dish.name}}</h3><p>{{dish.reason}}</p></div><button class="secondary" :disabled="busy" @click="aiCook(dish)">生成食谱</button></article></template></div></section></template>
       </FridgeManager>
-      <template v-if="page==='today'"><section class="page-heading"><div><div class="eyebrow">COOK TODAY</div><h1>今天做什么<span class="title-dot">.</span></h1><p>把选好的菜放到灶台边，一步一步往下做。</p></div><ChefHat :size="45" stroke-width="1"/></section><section v-if="!menu.length" class="empty-panel"><ChefHat :size="54" stroke-width="1"/><h2>还没有选菜</h2><p>在首页或「冰箱里有什么」里勾选几道菜，再点底部的「去做饭」。</p><div class="empty-actions"><button class="primary" @click="page='recipes'">去选菜 <ArrowRight :size="16"/></button><button class="primary" @click="goPantry"><Refrigerator :size="16"/> 去冰箱看看能做什么</button></div></section><template v-else><section class="today-card"><div class="today-head"><div><div class="eyebrow">YOUR MENU</div><h2>今天这 {{menu.length}} 道</h2></div><span class="muted">已勾选 {{cookDone}} / {{cookTotal}} 步</span></div><div class="chip-row"><span v-for="r in cookRecipes" :key="r.id" class="pantry-chip">{{r.name}}</span></div><div class="today-actions"><button class="text-button" @click="page='recipes'">换几道菜</button></div></section><section v-for="r in cookRecipes" :key="r.id" class="today-card cook-dish"><div class="today-head"><div><div class="eyebrow">DISH</div><h2>{{r.name}}</h2></div><span class="muted">已勾选 {{r.steps.filter(s=>done[s.id]).length}} / {{r.steps.length}} 步</span></div><h3>备料 <span>{{r.ingredients.length}} 项</span></h3><div v-for="item in r.ingredients" :key="item.id" class="ingredient-line"><span>{{item.name}}<small v-if="item.kind==='调料'">调料</small></span><strong>{{item.amount || '未注明'}}</strong></div><h3>开始下厨 <span>点一下勾掉一步</span></h3><label v-for="(step,stepIndex) in r.steps" :key="step.id" class="cooking-step" :class="{isdone:done[step.id]}"><input type="checkbox" v-model="done[step.id]"/><span class="step-number">{{String(stepIndex + 1).padStart(2, '0')}}</span><div class="cooking-step-content"><p>{{step.text}}</p></div></label><div v-if="r.notes" class="recipe-note"><strong>我的厨房笔记</strong><p>{{r.notes}}</p></div></section><p v-if="cookDone===cookTotal&&cookTotal" class="cook-finish"><Flame :size="16"/> 全部步骤都完成了，关火开吃。</p><div class="today-footer"><span class="muted">菜品和勾选都还留着，随时可以回来接着做。</span><div class="today-footer-actions"><button class="primary" :disabled="!cookTotal||cookDone!==cookTotal" @click="finishCooking">完成制作</button><button class="primary" @click="clearToday">清空这顿饭</button></div></div></template></template>
+      <CookingWorkspace v-if="page==='today'" :journal="journal" @browse="page='recipes'" @records="page='records'"/>
+      <KitchenFootprints v-if="page==='records'" :journal="journal" @browse="page='recipes'" @cook="openCooking"/>
+      <template v-if="page==='mine'">
+        <section class="page-heading"><div><div class="eyebrow">MY LITTLE KITCHEN</div><h1>我的厨房<span class="title-dot">。</span></h1><p>{{user.username}}，把日子过成喜欢的味道。</p></div><UserRound :size="40" stroke-width="1"/></section>
+        <section class="mine-grid" aria-label="厨房工具与账号">
+          <button @click="page='recipes'"><BookOpen/><strong>菜谱库</strong><span>收藏、导入与编辑做法</span></button>
+          <button @click="openMenu"><ChefHat/><strong>本次菜单</strong><span>已选 {{selected.length}} 道菜</span></button>
+          <button @click="page='shopping'"><ShoppingBasket/><strong>采购清单</strong><span>核对下一餐要买的材料</span></button>
+          <button @click="page='plan'"><CalendarDays/><strong>每周饮食计划</strong><span>安排一周的三餐</span></button>
+          <button @click="accountOpen=true"><UserRound/><strong>账号管理</strong><span>密码、小红书登录与账号</span></button>
+          <button @click="tagManager=true"><Pencil/><strong>管理标签</strong><span>整理自己的食谱分类</span></button>
+          <button @click="aiSetup=true"><Sparkles/><strong>AI 设置</strong><span>配置食谱助手的模型</span></button>
+          <button @click="signOut"><ArrowRight/><strong>退出登录</strong><span>下次回来，继续这一餐</span></button>
+        </section>
+      </template>
       <MealPlan v-if="page==='plan'" @goto-shopping="page='shopping'"/>
       <div v-if="page==='menu'||page==='shopping'" class="shopping-flow-nav" aria-label="菜单与采购"><button :class="{chosen:page==='menu'}" @click="openMenu">本次菜单（{{selected.length}}）</button><button :class="{chosen:page==='shopping'}" @click="page='shopping'">采购清单</button></div>
       <MenuReview v-if="page==='menu'" :recipes="selectedRecipes" :busy="busy" :has-list="shopping.length>0" @remove="removeSelected" @browse="page='recipes'" @match="goPantry" @generate="generate" @detail="detail=$event" @shopping="page='shopping'"/>
@@ -123,9 +155,9 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
     </div>
   </main>
   <div v-if="managing&&page==='recipes'" class="selection-bar"><span><strong>{{picked.length}}</strong> 道食谱已选</span><template v-if="!deleteConfirm"><button class="text-button" @click="exitManage">取消</button><button class="danger-button" :disabled="!picked.length||busy" @click="deleteConfirm=true">删除所选</button></template><template v-else><span>确认删除？删除后无法恢复。</span><button class="danger-button" :disabled="busy" @click="removePicked">确定删除</button><button class="text-button" @click="deleteConfirm=false">再想想</button></template></div>
-  <Transition name="tab-pop"><button v-if="selected.length&&barClosed&&!managing" class="bar-tab" @click="barClosed=false" :aria-label="`展开已选菜单，${selected.length} 道`"><ShoppingBasket :size="18"/><span>{{selected.length}}</span></button></Transition>
-  <Transition name="fade-up"><div v-if="selected.length&&!barClosed&&!managing&&showMenu" class="selection-preview"><div class="preview-head"><strong>已选 {{selected.length}} 道</strong><div class="preview-head-actions"><button class="text-button danger-text" @click="clearSelected">清空</button><button class="text-button" @click="showMenu=false">关闭</button></div></div><div class="chip-row"><span v-for="r in selectedRecipes" :key="r.id" class="pantry-chip">{{r.name}}<button type="button" @click="removeSelected(r.id)" :aria-label="'移除'+r.name">×</button></span></div></div></Transition>
-  <Transition name="bar-collapse"><div v-if="selected.length&&!barClosed&&!managing&&page!=='menu'&&page!=='shopping'" class="selection-bar"><span><strong>{{selected.length}}</strong> 道菜已选好</span><button class="text-button" @click="showMenu=!showMenu">{{showMenu?'隐藏':'查看'}}</button><button class="text-button" @click="closeBar">收起</button><button class="primary" :disabled="busy" @click="openMenu">确认菜单 <ArrowRight :size="16"/></button><button class="primary" @click="menu=[...selected];page='today'">去做饭 <ChefHat :size="16"/></button></div></Transition>
+  <Transition name="tab-pop"><button v-if="selected.length&&barClosed&&!managing&&selectionVisible" class="bar-tab" @click="barClosed=false" :aria-label="`展开已选菜单，${selected.length} 道`"><ShoppingBasket :size="18"/><span>{{selected.length}}</span></button></Transition>
+  <Transition name="fade-up"><div v-if="selected.length&&!barClosed&&!managing&&showMenu&&selectionVisible" class="selection-preview"><div class="preview-head"><strong>已选 {{selected.length}} 道</strong><div class="preview-head-actions"><button class="text-button danger-text" @click="clearSelected">清空</button><button class="text-button" @click="showMenu=false">关闭</button></div></div><div class="chip-row"><span v-for="r in selectedRecipes" :key="r.id" class="pantry-chip">{{r.name}}<button type="button" @click="removeSelected(r.id)" :aria-label="'移除'+r.name">×</button></span></div></div></Transition>
+  <Transition name="bar-collapse"><div v-if="selected.length&&!barClosed&&!managing&&selectionVisible" class="selection-bar"><span><strong>{{selected.length}}</strong> 道菜已选好</span><button class="text-button" @click="showMenu=!showMenu">{{showMenu?'隐藏':'查看'}}</button><button class="text-button" @click="closeBar">收起</button><button class="primary" :disabled="busy" @click="openMenu">确认菜单 <ArrowRight :size="16"/></button><button class="primary" :disabled="cookingBusy" @click="beginCooking(selected)">去做饭 <ChefHat :size="16"/></button></div></Transition>
   <div v-if="notice" class="toast" role="status"><Check :size="17"/>{{notice}}</div>
   <div v-if="importer" class="overlay" @click.self="!busy&&(importer=false)"><section class="modal import-modal"><button class="close" @click="importer=false" :disabled="busy" aria-label="关闭"><X/></button><span class="modal-icon"><Link :size="27"/></span><div class="eyebrow">SAVE YOUR NEXT FAVORITE</div><h2>留住一道好味道</h2><form @submit.prevent="importLink"><label>链接或分享文案<textarea v-model="url" required rows="2" placeholder="粘贴豆果菜谱链接、小红书完整分享链接或 xhslink.com 短链"/></label><button class="primary wide" :disabled="busy||!url.trim()">{{busy?'正在读取页面并提取…':'提取食谱'}} <ArrowRight :size="17"/></button></form><form class="import-search" @submit.prevent="searchImport"><label>按菜名在豆果搜索<textarea v-model="keyword" required maxlength="30" rows="2" placeholder="例如：番茄炒蛋"/></label><button class="primary wide" :disabled="busy||!keyword.trim()">{{busy?'正在搜索并提取…':'搜索豆果'}} <Search :size="17"/></button></form><form class="import-ai" @submit.prevent="aiGenerate"><label>让 AI 写一道菜<small>描述口味、人数或手边食材，AI 生成草稿后仍需你核对</small><textarea v-model="aiPrompt" required maxlength="120" rows="2" placeholder="例如：30 分钟能做完的两人份下饭菜"/></label><button class="primary wide" :disabled="busy||!aiPrompt.trim()">{{busy?'AI 正在写…':'AI 生成食谱'}} <Sparkles :size="17"/></button></form><div v-if="error" class="alert">{{error}}</div><button class="text-button" @click="importer=false;edit()">也可以手动录入一道菜 <Pencil :size="14"/></button></section></div>
   <RecipeEditor v-if="editor" :key="importMeta?importMeta.index:'editor'" :recipe="editor" :catalog="catalog" :busy="busy" :error="error" :search-meta="importMeta" @cancel="editor=null;importMeta=null" @save="save" @next="nextImport" @catalog-change="load" @manage-tags="tagManager=true"/>

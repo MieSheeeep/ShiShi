@@ -24,7 +24,7 @@
     margin: 0;
     padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     border-top: 1px solid var(--border);
-    background: #fff;
+    background: var(--surface);
     box-shadow: 0 -4px 20px #293d3308;
   }
 
@@ -59,4 +59,14 @@
 
   .selection-bar > span, .selection-bar .primary { font-size: 10px; }
   .overlay { padding-bottom: max(15px, env(safe-area-inset-bottom)); }
+}
+
+/* Keep selected dishes out of the cooking and archive surfaces. */
+@media(max-width:768px) {
+  .layout .sidebar nav { grid-template-columns:repeat(5,minmax(0,1fr)); }
+  .layout .sidebar nav button { min-width:0; }
+  .layout .selection-bar { left:50%; bottom:calc(80px + env(safe-area-inset-bottom)); flex-wrap:wrap; justify-content:center; width:calc(100% - 24px); gap:8px 13px; white-space:normal; }
+  .layout .selection-preview { left:50%; bottom:calc(190px + env(safe-area-inset-bottom)); width:calc(100% - 24px); max-height:35vh; overflow:auto; }
+  .layout .bar-tab { left:14px; bottom:calc(85px + env(safe-area-inset-bottom)); }
+  .layout.has-selection .content { padding-bottom:calc(220px + env(safe-area-inset-bottom)); }
 }
