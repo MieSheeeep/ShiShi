@@ -82,7 +82,7 @@ git switch -c codex/recipe-editor-mobile
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
-node --test tests/recipe-editing.test.mjs tests/daily-content.test.mjs tests/solar-terms.test.mjs tests/fridge-state.test.mjs tests/menu-selection.test.mjs tests/shopping-state.test.mjs
+node --test tests/recipe-editing.test.mjs tests/daily-content.test.mjs tests/solar-terms.test.mjs tests/fridge-state.test.mjs tests/menu-selection.test.mjs tests/shopping-state.test.mjs tests/cooking-journal.test.mjs
 npm --prefix frontend run build
 git diff --check
 ```
