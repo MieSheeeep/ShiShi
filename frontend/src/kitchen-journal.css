@@ -8,3 +8,5 @@
 @media(prefers-reduced-motion:reduce){.kj *,.kj *::before,.kj *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 
 .kj-prior-note{background:#f4e7d3;border-left:2px solid #b9873e;padding:16px;margin:20px 0}.kj-prior-note .kj-own-note{border:0;padding:0;margin-bottom:0}.kj-meal-count{font-size:12px!important;color:var(--kj-ink)!important}.kj-meal-dishes{list-style:none;padding:0;margin:12px 0}.kj-meal-dishes li{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin:6px 0;font-size:12px}.kj-meal-dishes small{font-size:10px;flex-shrink:0;color:var(--kj-red)}
+
+.kj-finalizing-fields{border:0;padding:0;margin:0;min-width:0}.kj-finalizing-status{padding:12px 16px;background:#f4e7d3;border-left:3px solid #9f3f2f;color:#4a3025;font-size:14px}
