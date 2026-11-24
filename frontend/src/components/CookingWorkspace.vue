@@ -1,57 +1,442 @@
 <script setup>
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
-import { Camera, Check, Flame, ArrowRight } from 'lucide-vue-next'
-import { effectiveDishes, recordPhoto, previousAttempt } from '../cookingJournal.js'
+import { Camera, Check, Flame, ArrowRight, Trophy, RotateCcw, Sparkles, Plus, Shuffle, ChevronLeft, ChevronRight, List, Layers, UtensilsCrossed } from 'lucide-vue-next'
+import { effectiveDishes, recordPhoto, previousAttempt, buildChapterMap, pickBlindBox, buildCelebration } from '../cookingJournal.js'
+import CookingRecordDetail from './CookingRecordDetail.vue'
 import '../kitchen-journal.css'
-const props=defineProps({journal:{type:Object,required:true}})
-const emit=defineEmits(['browse','recorded','records'])
-const manual=ref(''),finishing=ref(false)
-const draft=computed(()=>props.journal.draft)
-const done=computed(()=>props.journal.lastCompleted)
-const priorNotes=ref({})
-let historyGeneration=0
-watch(()=>[props.journal.accountId,draft.value?.id],async()=>{
-  const generation=++historyGeneration,account=props.journal.accountId,session=draft.value
-  priorNotes.value={}
-  if(!session)return
-  await Promise.all(session.dishes.map(async dish=>{
-    try{
-      const records=await props.journal.history(dish.dish_key)
-      if(generation!==historyGeneration||account!==props.journal.accountId||session.id!==draft.value?.id)return
-      const prior=previousAttempt(records,dish.dish_key,session.id)
-      if(prior)priorNotes.value={...priorNotes.value,[dish.id]:prior}
-    }catch{/* Optional history never prevents cooking; no invented note is shown. */}
+
+const props = defineProps({
+  journal: { type: Object, required: true },
+  recipes: { type: Array, default: () => [] },
+  pantryCount: { type: Number, default: 0 }
+})
+const emit = defineEmits(['browse', 'pantry', 'recorded', 'records', 'start-recipe'])
+
+const manual = ref('')
+const finishing = ref(false)
+const viewMode = ref('card')
+const activeDishIdx = ref(0)
+const activeStepIdx = ref(0)
+const showIngredients = ref(false)
+const detail = ref(null)
+const localError = ref('')
+const blindBox = ref(null)
+const wasRevenge = ref(false)
+
+const draft = computed(() => props.journal.draft)
+const done = computed(() => props.journal.lastCompleted)
+const priorNotes = ref({})
+let historyGeneration = 0
+
+const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
+const chapterMap = computed(() => buildChapterMap(props.journal.summary, props.recipes))
+const activeDish = computed(() => draft.value?.dishes?.[activeDishIdx.value] || draft.value?.dishes?.[0] || null)
+const activeSteps = computed(() => activeDish.value?.snapshot?.steps || [])
+const currentStep = computed(() => activeSteps.value[activeStepIdx.value] || null)
+
+const celebration = computed(() => done.value ? buildCelebration(done.value, props.journal.summary, { wasRevenge: wasRevenge.value }) : null)
+
+watch(() => [props.journal.accountId, draft.value?.id], async () => {
+  const generation = ++historyGeneration
+  const account = props.journal.accountId
+  const session = draft.value
+  priorNotes.value = {}
+  activeDishIdx.value = 0
+  activeStepIdx.value = 0
+  showIngredients.value = false
+  if (!session) return
+  await Promise.all(session.dishes.map(async dish => {
+    try {
+      const records = await props.journal.history(dish.dish_key)
+      if (generation !== historyGeneration || account !== props.journal.accountId || session.id !== draft.value?.id) return
+      const prior = previousAttempt(records, dish.dish_key, session.id)
+      if (prior) priorNotes.value = { ...priorNotes.value, [dish.id]: prior }
+    } catch { /* Optional history never prevents cooking. */ }
   }))
-},{immediate:true})
-onBeforeUnmount(()=>{historyGeneration++})
-const today=new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'})
-const attempt=async action=>{try{await action()}catch{/* journal exposes the real error */}}
-function patch(value){return attempt(()=>props.journal.patch(value))}
-function dishPatch(dish,value){return patch({dishes:[{id:dish.id,...value}]})}
-function toggle(dish,id){const steps=new Set(dish.completed_steps);steps.has(id)?steps.delete(id):steps.add(id);dishPatch(dish,{completed_steps:[...steps]})}
-async function upload(event,dish){const files=[...event.target.files];event.target.value='';for(const file of files){if(dish.photos.length>=12)break;await attempt(async()=>{const url=await props.journal.uploadPhoto(file);if(url&&draft.value?.dishes.some(d=>d.id===dish.id))await dishPatch(dish,{photos:[...dish.photos,url]})})}}
-async function complete(){await attempt(async()=>{const record=await props.journal.complete();if(record){finishing.value=false;emit('recorded',record)}})}
+}, { immediate: true })
+
+watch(activeDishIdx, () => { activeStepIdx.value = 0 })
+onBeforeUnmount(() => { historyGeneration++ })
+
+const attempt = async action => {
+  localError.value = ''
+  try { return await action() } catch (e) { localError.value = e.message }
+}
+function patch(value) { return attempt(() => props.journal.patch(value)) }
+function dishPatch(dish, value) { return patch({ dishes: [{ id: dish.id, ...value }] }) }
+function toggleStep(dish, id) {
+  const steps = new Set(dish.completed_steps)
+  steps.has(id) ? steps.delete(id) : steps.add(id)
+  dishPatch(dish, { completed_steps: [...steps] })
+}
+function nextStep() {
+  if (activeStepIdx.value < activeSteps.value.length - 1) {
+    if (currentStep.value && activeDish.value && !activeDish.value.completed_steps.includes(currentStep.value.id)) {
+      toggleStep(activeDish.value, currentStep.value.id)
+    }
+    activeStepIdx.value++
+  } else {
+    if (currentStep.value && activeDish.value && !activeDish.value.completed_steps.includes(currentStep.value.id)) {
+      toggleStep(activeDish.value, currentStep.value.id)
+    }
+    finishing.value = true
+  }
+}
+function prevStep() {
+  if (activeStepIdx.value > 0) activeStepIdx.value--
+}
+
+async function upload(event, dish) {
+  const files = [...event.target.files]
+  event.target.value = ''
+  for (const file of files) {
+    if (dish.photos.length >= 12) break
+    await attempt(async () => {
+      const url = await props.journal.uploadPhoto(file)
+      if (url && draft.value?.dishes.some(d => d.id === dish.id)) {
+        await dishPatch(dish, { photos: [...dish.photos, url] })
+      }
+    })
+  }
+}
+
+async function complete() {
+  wasRevenge.value = Object.values(priorNotes.value).some(p => p?.dish?.outcome === 'practice')
+  await attempt(async () => {
+    const record = await props.journal.complete()
+    if (record) {
+      finishing.value = false
+      emit('recorded', record)
+    }
+  })
+}
+
+async function startStage(stage) {
+  if (stage.recipeId) {
+    emit('start-recipe', stage.recipeId)
+    return
+  }
+  if (stage.dishKey) {
+    await attempt(() => props.journal.start({ manual_name: stage.name, dish_key: stage.dishKey }))
+    return
+  }
+  await attempt(() => props.journal.start({ manual_name: stage.name }))
+}
+
+async function viewStageRecord(stage) {
+  if (!stage.lastSessionId) return
+  const record = await attempt(() => props.journal.getRecord(stage.lastSessionId))
+  if (record) detail.value = record
+}
+
+function rollBlindBox() {
+  blindBox.value = pickBlindBox(props.recipes, props.journal.summary, Math.random())
+}
+
+function dismissDone() {
+  props.journal.lastCompleted = null
+}
 </script>
 
 <template>
-  <section class="kj journal-workspace">
-    <header class="kj-heading"><div><span class="kj-eyebrow">THE EVERYDAY KITCHEN · 下厨现场</span><h1>给这一餐，一点时间。</h1><p>做成也好，还想再练也好，都是你的烟火日常。</p></div><Flame class="kj-heading-icon" :size="38" /></header>
-    <p v-if="journal.finalizing" class="kj-finalizing-status" role="status">正在确认保存这一餐，已暂时锁定编辑，请稍候。</p>
-    <div v-if="journal.error" class="kj-error" role="alert"><p>{{ journal.error }}</p><div class="kj-actions" v-if="journal.conflict"><button :disabled="journal.finalizing" @click="attempt(()=>journal.resolveConflict('reload'))">放弃本次输入，恢复服务端版本</button><button @click="attempt(()=>journal.resolveConflict('retry'))">保留我的输入并重试</button></div><button v-else :disabled="journal.finalizing" @click="attempt(()=>journal.retry())">重试保存</button></div>
-    <article v-if="!draft && done" class="kj-success kj-paper" aria-live="polite">
-      <span class="kj-eyebrow">{{ done.cooked_on }} · 厨房足迹 {{ String(done.number).padStart(3,'0') }}</span>
-      <h2>这一餐，留下来了。</h2><p>每一次认真尝试，都值得留在这里。</p>
-      <img v-if="recordPhoto(done)" class="kj-developed" :src="recordPhoto(done)" alt="这一餐的成品照片" />
-      <div v-else class="kj-word-art"><span>{{ effectiveDishes(done).map(d=>d.snapshot.name).join(' · ') }}</span><p>{{ done.note || '烟火有迹，来日可期。' }}</p></div>
-      <span class="kj-stamp kj-stamp-land">已留印<br><small>{{ done.cooked_on }}</small></span>
-      <div class="kj-actions"><button class="kj-primary" @click="emit('records')">去看厨房足迹 <ArrowRight :size="16" /></button><button @click="emit('browse')">再选一道菜</button></div>
+  <section class="kj kj-workspace">
+    <!-- Compact 1-line Header when idle -->
+    <header v-if="!draft" class="kj-compact-head">
+      <h1>厨房闯关<span class="title-dot">。</span></h1>
+      <div class="kj-level-chip" aria-label="当前阶段">
+        <Trophy :size="14" />
+        <span>Lv.{{ journal.summary.level.number }} {{ journal.summary.level.title }}</span>
+        <small>{{ chapterMap.totalCleared }}/{{ chapterMap.totalStages }}</small>
+      </div>
+    </header>
+
+    <p v-if="journal.finalizing" class="kj-status-banner" role="status">正在保存这一餐，请稍候…</p>
+    <div v-if="localError || journal.error" class="kj-error" role="alert">
+      <p>{{ localError || journal.error }}</p>
+      <div class="kj-actions" v-if="journal.conflict">
+        <button :disabled="journal.finalizing" @click="attempt(() => journal.resolveConflict('reload'))">恢复服务端版本</button>
+        <button @click="attempt(() => journal.resolveConflict('retry'))">保留输入重试</button>
+      </div>
+      <button v-else-if="journal.error" :disabled="journal.finalizing" @click="attempt(() => journal.retry())">重试保存</button>
+    </div>
+
+    <!-- Celebration Poster Card -->
+    <article v-if="!draft && done && celebration" class="kj-card kj-celebrate" aria-live="polite">
+      <div class="kj-confetti" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="kj-celebrate-top">
+        <span class="kj-seal kj-seal-land">{{ celebration.badge }}<small>{{ done.cooked_on }}</small></span>
+        <span class="kj-muted">第 {{ String(done.number).padStart(3, '0') }} 餐</span>
+      </div>
+      <h2>{{ celebration.headline }}</h2>
+      <p class="kj-muted">{{ celebration.subline }}</p>
+
+      <img v-if="recordPhoto(done)" class="kj-celebrate-photo" :src="recordPhoto(done)" alt="这一餐的成品照" />
+      <div class="kj-dish-tags">
+        <span v-for="dish in effectiveDishes(done)" :key="dish.id" :class="['kj-dish-chip', 'is-' + dish.outcome]">
+          {{ dish.snapshot.name }}
+          <em>{{ dish.outcome === 'success' ? '做成了' : '还想再练' }}</em>
+        </span>
+      </div>
+      <p v-if="done.note" class="kj-quote">{{ done.note }}</p>
+      <div class="kj-actions">
+        <button class="kj-primary" @click="emit('records')">去看下厨记录 <ArrowRight :size="15" /></button>
+        <button @click="dismissDone">继续闯关</button>
+      </div>
     </article>
-    <div v-else-if="!draft" class="kj-empty kj-paper"><span class="kj-empty-mark">灶</span><h2>第一餐，从这里开始</h2><p>选一道想做的菜，按自己的节奏来。已经做过的，也可以补记。</p><button class="kj-primary" @click="emit('browse')">去菜谱库选菜</button><form class="kj-manual" @submit.prevent="attempt(()=>journal.start({manual_name:manual.trim()}))"><label for="workspace-manual">补记一道做过的菜</label><div class="kj-actions"><input id="workspace-manual" v-model="manual" maxlength="80" required placeholder="菜名，例如：一碗热汤" /><button :disabled="!manual.trim()">开始补记</button></div></form><div v-if="journal.drafts.length" class="kj-draft-list"><h3>还没收尾的烟火</h3><button v-for="item in journal.drafts" :key="item.id" @click="attempt(()=>journal.resume(item.id))">{{ item.cooked_on }} · {{ item.dishes.map(d=>d.snapshot.name).join('、') }} →</button></div></div>
-    <fieldset v-else class="kj-finalizing-fields" :disabled="journal.finalizing" :aria-busy="journal.finalizing">
-      <div class="kj-session-head kj-paper"><span class="kj-eyebrow">这一餐 · No. {{ String(draft.number).padStart(3,'0') }}</span><div class="kj-form-row"><label>日期<input type="date" :max="today" :value="draft.cooked_on" @change="patch({cooked_on:$event.target.value})" /></label><label>给这一餐起个名字（可选）<input :value="draft.title" maxlength="80" placeholder="这一天的烟火" @input="patch({title:$event.target.value})" /></label></div><p class="kj-muted" aria-live="polite">{{ journal.finalizing ? '正在确认这一餐…' : journal.uploading ? '照片上传中…' : journal.saving ? '正在保存…' : journal.error ? '输入已保留，等待重试' : '草稿会随操作保存' }}</p></div>
-      <div class="kj-tabs"><button :aria-pressed="!finishing" @click="finishing=false">01 跟着做</button><button :aria-pressed="finishing" @click="finishing=true">02 收尾留念</button></div>
-      <div v-if="!finishing" class="kj-cook-grid"><article v-for="dish in draft.dishes" :key="dish.id" class="kj-paper kj-recipe"><span class="kj-eyebrow">{{ dish.snapshot.emoji }} 这一道</span><h2>{{ dish.snapshot.name }}</h2><aside v-if="priorNotes[dish.id]" class="kj-prior-note"><span class="kj-eyebrow">上一次的自己 · {{ priorNotes[dish.id].record.cooked_on }}</span><p v-if="priorNotes[dish.id].dish.note" class="kj-own-note">{{ priorNotes[dish.id].dish.note }}</p><p v-else class="kj-muted">上次没有留下心得。这次，慢慢试。</p></aside><details open><summary>准备食材</summary><ul class="kj-ingredients"><li v-for="ingredient in dish.snapshot.ingredients" :key="ingredient.id"><span>{{ ingredient.name }}</span><span>{{ ingredient.amount }}</span></li></ul></details><ol class="kj-steps"><li v-for="(step,index) in dish.snapshot.steps" :key="step.id"><label><input type="checkbox" :checked="dish.completed_steps.includes(step.id)" @change="toggle(dish,step.id)" /><span><b>{{ String(index+1).padStart(2,'0') }}</b>{{ step.text }}</span></label><div v-if="step.images?.length" class="kj-step-images"><img v-for="url in step.images" :key="url" :src="url" :alt="`第${index+1}步参考配图`" loading="lazy" /></div></li></ol><p v-if="!dish.snapshot.steps?.length" class="kj-muted">这道菜没有步骤。按自己的方式做，直接到收尾留下结果。</p><details v-if="dish.snapshot.notes"><summary>食谱提示</summary><p>{{ dish.snapshot.notes }}</p></details></article><aside class="kj-paper kj-terms"><h3>灶边小注</h3><details><summary>“焯水”是什么？</summary><p>食材在沸水中短暂加热后捞出，具体时长以食谱为准。</p></details><details><summary>“收汁”是什么？</summary><p>继续加热让部分水分蒸发，汤汁逐渐浓稠；留意翻动，避免烧干。</p></details><button class="kj-primary" @click="finishing=true">做好了，去收尾 <ArrowRight :size="16" /></button><p class="kj-muted">步骤没有全部勾完，也能记录这一餐。</p></aside></div>
-      <div v-else class="kj-finish"><article v-for="dish in draft.dishes" :key="dish.id" class="kj-paper"><h2>{{ dish.snapshot.name }}</h2><fieldset class="kj-outcomes"><legend>这道菜，做得怎么样？</legend><label v-for="option in [{value:'success',label:'做成了'},{value:'practice',label:'还想再练'},{value:'skipped',label:'这次没做'}]" :key="option.value"><input type="radio" :name="dish.id" :value="option.value" :checked="dish.outcome===option.value" @change="dishPatch(dish,{outcome:option.value})" />{{ option.label }}</label></fieldset><label>留给下次的自己（可选）<textarea maxlength="1000" :value="dish.note" placeholder="火候、味道，或一点小发现…" @input="dishPatch(dish,{note:$event.target.value})" /></label><div class="kj-photo-strip"><figure v-for="(url,index) in dish.photos" :key="url"><img :src="url" :alt="`${dish.snapshot.name}成品${index+1}`" /><button :aria-label="`移除成品照片${index+1}`" @click="dishPatch(dish,{photos:dish.photos.filter((_,i)=>i!==index)})">移除</button></figure></div><label class="kj-upload"><Camera :size="18" /> 留一张我的成品照（可选，最多12张）<input type="file" accept="image/jpeg,image/png,image/webp" multiple :disabled="!!journal.uploading||dish.photos.length>=12" @change="upload($event,dish)" /></label></article><article class="kj-paper"><label>关于这一餐（可选）<textarea :value="draft.note" maxlength="1000" placeholder="想记什么，就写什么。" @input="patch({note:$event.target.value})" /></label><p class="kj-muted">至少做成或练习了一道菜，即可留下一餐。照片和心得都可以跳过。</p><button class="kj-primary" :disabled="journal.saving||!!journal.uploading||draft.dishes.some(d=>d.outcome==='pending')||!effectiveDishes(draft).length" @click="complete"><Check :size="18" /> {{ journal.uploading ? '等待照片上传' : journal.saving ? '正在保存这一餐…' : '留下这一餐' }}</button></article></div>
+
+    <!-- Idle: Blind Box + Built-in Recipe Chapters -->
+    <template v-else-if="!draft">
+      <section v-if="journal.drafts.length" class="kj-resume-banner">
+        <strong>灶台还有未收尾的一餐</strong>
+        <div class="kj-resume-list">
+          <button v-for="item in journal.drafts" :key="item.id" class="kj-primary" @click="attempt(() => journal.resume(item.id))">
+            <RotateCcw :size="14" /> 继续：{{ item.dishes.map(d => d.snapshot.name).join('、') }}
+          </button>
+        </div>
+      </section>
+
+      <!-- Today's Blind Box -->
+      <section class="kj-card kj-blindbox">
+        <div class="kj-spread">
+          <div>
+            <span class="kj-tag">今日盲盒</span>
+            <h2 v-if="!blindBox">不知道做什么？摇一道来闯关</h2>
+            <h2 v-else>{{ blindBox.emoji }} {{ blindBox.name }}</h2>
+          </div>
+          <button class="kj-soft-btn" @click="rollBlindBox">
+            <Shuffle :size="15" /> {{ blindBox ? '换一个' : '摇一下' }}
+          </button>
+        </div>
+        <template v-if="blindBox">
+          <p class="kj-blind-twist"><Sparkles :size="14" /> 附加小任务：{{ blindBox.twist }}</p>
+          <p class="kj-muted">秘籍：{{ blindBox.tip }}</p>
+          <div class="kj-actions">
+            <button class="kj-primary" @click="startStage(blindBox)"><Flame :size="15" /> 接受挑战，现在开火</button>
+          </div>
+        </template>
+      </section>
+
+      <!-- Chapters -->
+      <div class="kj-chapters">
+        <section v-for="chapter in chapterMap.chapters" :key="chapter.id" class="kj-chapter">
+          <div class="kj-chapter-head">
+            <div>
+              <span class="kj-chapter-num">第 {{ chapter.number }} 关</span>
+              <h2>{{ chapter.title }}</h2>
+              <span class="kj-muted">{{ chapter.subtitle }}</span>
+            </div>
+            <span :class="['kj-chapter-progress', { 'is-done': chapter.completed }]">
+              {{ chapter.completed ? `已获「${chapter.badge}」` : `${chapter.clearedCount} / ${chapter.stages.length}` }}
+            </span>
+          </div>
+
+          <div class="kj-stage-grid">
+            <article v-for="stage in chapter.stages" :key="stage.id" :class="['kj-card', 'kj-stage-card', 'is-' + stage.state]">
+              <div class="kj-stage-top">
+                <img v-if="stage.cover" class="kj-stage-thumb" :src="stage.cover" :alt="stage.name" loading="lazy" />
+                <span v-else class="kj-stage-emoji">{{ stage.emoji }}</span>
+                <div class="kj-stage-meta">
+                  <div class="kj-spread">
+                    <h3>{{ stage.name }}</h3>
+                    <span v-if="stage.state === 'cleared'" class="kj-seal-mini">已通关</span>
+                    <span v-else-if="stage.state === 'revenge'" class="kj-revenge-tag">待复仇</span>
+                  </div>
+                  <small class="kj-muted">{{ stage.minutes }} 分钟 · {{ '★'.repeat(stage.difficulty) }}</small>
+                </div>
+              </div>
+              <p class="kj-stage-tip">{{ stage.tip }}</p>
+              <div class="kj-stage-foot">
+                <button v-if="stage.state === 'cleared' && stage.lastSessionId" class="kj-link" @click="viewStageRecord(stage)">回看记录</button>
+                <span v-else class="kj-muted">{{ stage.state === 'revenge' ? '再战一次翻盘' : '内置菜谱直开' }}</span>
+                <button :class="stage.state === 'cleared' ? 'kj-soft-btn' : 'kj-primary'" :disabled="journal.finalizing" @click="startStage(stage)">
+                  <Flame :size="14" /> {{ stage.state === 'cleared' ? '再练一次' : stage.state === 'revenge' ? '去复仇' : '开始闯关' }}
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+
+      <!-- Compact Manual Quick-Log -->
+      <form class="kj-card kj-quick-manual" @submit.prevent="attempt(() => journal.start({ manual_name: manual.trim() }))">
+        <input id="workspace-manual" v-model="manual" maxlength="80" required placeholder="做过其他菜？输入菜名直接补记一餐" aria-label="补记一道做过的菜" />
+        <button :disabled="!manual.trim() || journal.finalizing"><Plus :size="15" /> 补记</button>
+      </form>
+    </template>
+
+    <!-- Active Cooking Flow: Card Stepper or List View + Process Photos + Finish -->
+    <fieldset v-else class="kj-finalizing-fields kj-cook-flow" :disabled="journal.finalizing" :aria-busy="journal.finalizing">
+      <header class="kj-cook-topbar">
+        <div class="kj-cook-title">
+          <strong>{{ activeDish?.snapshot?.name || '正在做菜' }}</strong>
+          <small aria-live="polite">{{ journal.uploading ? '照片上传中…' : journal.saving ? '保存中…' : '自动保存' }}</small>
+        </div>
+        <div class="kj-cook-switch" v-if="!finishing">
+          <button type="button" :class="['kj-mode-btn', { 'is-active': viewMode === 'card' }]" @click="viewMode = 'card'"><Layers :size="14" /> 卡片</button>
+          <button type="button" :class="['kj-mode-btn', { 'is-active': viewMode === 'list' }]" @click="viewMode = 'list'"><List :size="14" /> 全览</button>
+        </div>
+        <button v-if="!finishing" type="button" class="kj-primary" @click="finishing = true">出锅</button>
+        <button v-else type="button" class="kj-soft-btn" @click="finishing = false">回步骤</button>
+      </header>
+
+      <!-- Multi-dish switcher -->
+      <div v-if="!finishing && draft.dishes.length > 1" class="kj-chip-strip">
+        <button v-for="(d, idx) in draft.dishes" :key="d.id" type="button" :class="['kj-chip-btn', { 'is-active': activeDishIdx === idx }]" @click="activeDishIdx = idx">
+          {{ d.snapshot.name }}
+        </button>
+      </div>
+
+      <!-- Step-by-step Card Mode -->
+      <template v-if="!finishing && viewMode === 'card' && activeDish">
+        <aside v-if="priorNotes[activeDish.id]" class="kj-prior-note">
+          <small>上次给自己的提醒 ({{ priorNotes[activeDish.id].record.cooked_on }})</small>
+          <p>{{ priorNotes[activeDish.id].dish.note || '上次没有写心得，这次可以顺手记一句。' }}</p>
+        </aside>
+
+        <div class="kj-card-meta-bar">
+          <span v-if="activeSteps.length" class="kj-step-counter">第 <b>{{ activeStepIdx + 1 }}</b> / {{ activeSteps.length }} 步</span>
+          <span v-else class="kj-step-counter">自由发挥模式</span>
+          <button v-if="activeDish.snapshot.ingredients?.length" type="button" class="kj-soft-btn" @click="showIngredients = !showIngredients">
+            <UtensilsCrossed :size="14" /> {{ showIngredients ? '收起备料' : `备料 (${activeDish.snapshot.ingredients.length})` }}
+          </button>
+        </div>
+
+        <div v-if="showIngredients && activeDish.snapshot.ingredients?.length" class="kj-card kj-ing-drawer">
+          <ul class="kj-ingredients">
+            <li v-for="ing in activeDish.snapshot.ingredients" :key="ing.id">
+              <span>{{ ing.name }}</span><strong>{{ ing.amount || '适量' }}</strong>
+            </li>
+          </ul>
+        </div>
+
+        <div v-if="activeSteps.length" class="kj-progress-dots" aria-hidden="true">
+          <span v-for="(s, i) in activeSteps" :key="s.id" :class="{ 'is-current': i === activeStepIdx, 'is-done': activeDish.completed_steps.includes(s.id) }" @click="activeStepIdx = i"></span>
+        </div>
+
+        <article class="kj-card kj-step-stage">
+          <template v-if="currentStep">
+            <p class="kj-step-text">{{ currentStep.text }}</p>
+            <div v-if="currentStep.images?.length" class="kj-stage-imgs">
+              <img v-for="url in currentStep.images" :key="url" :src="url" :alt="`第${activeStepIdx + 1}步参考图`" />
+            </div>
+          </template>
+          <p v-else class="kj-step-text">这道菜没有预设步骤，按自己的节奏来，做完直接点「出锅」拍成品照吧。</p>
+
+          <!-- Process Photo Capture -->
+          <div class="kj-process-cam">
+            <label class="kj-cam-btn">
+              <Camera :size="16" /> 拍下这一步（过程记录）
+              <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple :disabled="!!journal.uploading || activeDish.photos.length >= 12" @change="upload($event, activeDish)" />
+            </label>
+            <div v-if="activeDish.photos.length" class="kj-mini-strip">
+              <img v-for="(url, i) in activeDish.photos" :key="url" :src="url" :alt="`过程照${i + 1}`" />
+            </div>
+          </div>
+        </article>
+
+        <div class="kj-stepper-bar">
+          <button type="button" :disabled="activeStepIdx === 0" @click="prevStep"><ChevronLeft :size="18" /> 上一步</button>
+          <button type="button" class="kj-primary" @click="nextStep">
+            {{ activeStepIdx < activeSteps.length - 1 ? '下一步' : '出锅！拍成品照' }} <ChevronRight :size="18" />
+          </button>
+        </div>
+      </template>
+
+      <!-- List Overview Mode -->
+      <template v-else-if="!finishing && viewMode === 'list'">
+        <div class="kj-cook-main">
+          <article v-for="dish in draft.dishes" :key="dish.id" class="kj-card">
+            <div class="kj-spread">
+              <h2>{{ dish.snapshot.name }}</h2>
+              <label class="kj-cam-btn">
+                <Camera :size="15" /> 拍过程
+                <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple :disabled="!!journal.uploading || dish.photos.length >= 12" @change="upload($event, dish)" />
+              </label>
+            </div>
+            <aside v-if="priorNotes[dish.id]" class="kj-prior-note">
+              <small>上次提醒 ({{ priorNotes[dish.id].record.cooked_on }})</small>
+              <p>{{ priorNotes[dish.id].dish.note || '上次未写心得' }}</p>
+            </aside>
+            <details v-if="dish.snapshot.ingredients?.length" open class="kj-block-details">
+              <summary>备料 ({{ dish.snapshot.ingredients.length }})</summary>
+              <ul class="kj-ingredients">
+                <li v-for="ing in dish.snapshot.ingredients" :key="ing.id"><span>{{ ing.name }}</span><strong>{{ ing.amount || '适量' }}</strong></li>
+              </ul>
+            </details>
+            <ol v-if="dish.snapshot.steps?.length" class="kj-steps">
+              <li v-for="(step, idx) in dish.snapshot.steps" :key="step.id" :class="{ 'is-done': dish.completed_steps.includes(step.id) }">
+                <label>
+                  <input type="checkbox" :checked="dish.completed_steps.includes(step.id)" @change="toggleStep(dish, step.id)" />
+                  <div><b>{{ String(idx + 1).padStart(2, '0') }}</b><span>{{ step.text }}</span></div>
+                </label>
+              </li>
+            </ol>
+            <div v-if="dish.photos.length" class="kj-mini-strip" style="margin-top:12px">
+              <img v-for="(url, i) in dish.photos" :key="url" :src="url" :alt="`过程照${i + 1}`" />
+            </div>
+          </article>
+          <button type="button" class="kj-primary kj-wide" @click="finishing = true">出锅！拍张成品照 <ArrowRight :size="16" /></button>
+        </div>
+      </template>
+
+      <!-- Finish & Final Dish Photo -->
+      <div v-else class="kj-finish">
+        <div class="kj-card kj-session-head">
+          <div class="kj-form-row">
+            <label>日期<input type="date" :max="today" :value="draft.cooked_on" @change="patch({ cooked_on: $event.target.value })" /></label>
+            <label>这一餐的名字（可选）<input :value="draft.title" maxlength="80" placeholder="例如：周五晚上的番茄炒蛋" @input="patch({ title: $event.target.value })" /></label>
+          </div>
+        </div>
+
+        <article v-for="dish in draft.dishes" :key="dish.id" class="kj-card">
+          <h2>{{ dish.snapshot.name }}</h2>
+
+          <!-- Prominent Final Photo Upload Box -->
+          <label class="kj-photo-drop">
+            <Camera :size="22" />
+            <div>
+              <strong>拍一张成品照（或选相册）</strong>
+              <small>过程照与成品照都会留进你的下厨记录，最多 12 张</small>
+            </div>
+            <input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple :disabled="!!journal.uploading || dish.photos.length >= 12" @change="upload($event, dish)" />
+          </label>
+
+          <div v-if="dish.photos.length" class="kj-photo-strip">
+            <figure v-for="(url, index) in dish.photos" :key="url">
+              <img :src="url" :alt="`${dish.snapshot.name}照片${index + 1}`" />
+              <button type="button" @click="dishPatch(dish, { photos: dish.photos.filter((_, i) => i !== index) })">移除</button>
+            </figure>
+          </div>
+
+          <fieldset class="kj-outcomes">
+            <legend>这道菜这次做得怎么样？</legend>
+            <div class="kj-outcome-pills">
+              <label v-for="option in [{ value: 'success', label: '做成了' }, { value: 'practice', label: '还想再练' }, { value: 'skipped', label: '这次没做' }]" :key="option.value" :class="['kj-pill', { 'is-active': dish.outcome === option.value }]">
+                <input type="radio" :name="dish.id" :value="option.value" :checked="dish.outcome === option.value" @change="dishPatch(dish, { outcome: option.value })" />
+                <span>{{ option.label }}</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <label>留给下次的自己（可选）
+            <textarea maxlength="1000" :value="dish.note" placeholder="火候、咸淡或一点小发现…" @input="dishPatch(dish, { note: $event.target.value })" />
+          </label>
+        </article>
+
+        <article class="kj-card kj-finish-foot">
+          <label>关于这一餐（可选）
+            <textarea :value="draft.note" maxlength="1000" placeholder="今天和谁一起吃、心情如何…" @input="patch({ note: $event.target.value })" />
+          </label>
+          <div class="kj-actions">
+            <button type="button" @click="finishing = false">回步骤</button>
+            <button type="button" class="kj-primary" :disabled="journal.saving || !!journal.uploading || draft.dishes.some(d => d.outcome === 'pending') || !effectiveDishes(draft).length" @click="complete">
+              <Check :size="17" /> {{ journal.uploading ? '照片上传中…' : journal.saving ? '保存中…' : '完成并留下这一餐' }}
+            </button>
+          </div>
+        </article>
+      </div>
     </fieldset>
+
+    <CookingRecordDetail :journal="journal" :record="detail" @close="detail = null" @cook="detail = null" />
   </section>
 </template>

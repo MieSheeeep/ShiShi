@@ -22,11 +22,11 @@ Files: backend/cooking.py、backend/cooking_store.py、backend/cooking_schema.py
 
 Files: frontend/src/useCookingJournal.js、cookingJournal.js、components/CookingWorkspace.vue、KitchenFootprints.vue、JournalHome.vue、kitchen-journal.css、tests/cooking-journal.test.mjs。不修改根 App、theme.css 或已有组件。
 
-- [ ] 先测试有效尝试、照片缺省不伪装成品、月份分组、历次同菜、持久化成功前不清草稿、保存串行失败保留输入等核心逻辑，观察失败。
-- [ ] 按契约提供 composable 及三个组件。Workspace 可使用snapshot跟做，自动保存步骤、逐菜确认结果/上传照片/心得、补记、保存失败重试，完成后显示作品反馈。
-- [ ] Footprints 必须有作品墙、月份足迹、拿手菜、真实统计、四枚可点击回溯印章、编辑/撤回/再做一次与历史对比，不预填假记录。无图文字卡和空状态同样完整。
-- [ ] Home 提供继续做饭、最近作品、成长目标，事件交给集成任务处理。音效不自动播放，支持 prefers-reduced-motion。
-- [ ] Node测试与Vite构建通过，组件需求审查后质量审查，修复并提交。
+- [x] 先测试有效尝试、照片缺省不伪装成品、月份分组、历次同菜、持久化成功前不清草稿、保存串行失败保留输入等核心逻辑，观察失败。
+- [x] 按契约提供 composable 及三个组件。Workspace 可使用snapshot跟做，自动保存步骤、逐菜确认结果/上传照片/心得、补记、保存失败重试，完成后显示作品反馈。
+- [x] Footprints 必须有作品墙、月份足迹、拿手菜、真实统计、四枚可点击回溯印章、编辑/撤回/再做一次与历史对比，不预填假记录。无图文字卡和空状态同样完整。
+- [x] Home 提供继续做饭、最近作品、成长目标，事件交给集成任务处理。音效不自动播放，支持 prefers-reduced-motion。
+- [x] Node测试与Vite构建通过，组件需求审查后质量审查，修复并提交。
 
 ## Task 3 — 根应用接入、全站暖色和回归
 
@@ -47,3 +47,6 @@ Files: App.vue、theme.css、mobile-navigation.css、main.js、docs/api.md、REA
 
 - Task2 首轮需求审查发现刷新旧响应覆盖已保存新版本、重复下厨缺上次心得、作品卡缺菜数与结果；已交实现者补回归并修复。
 - 临时库在线备份后读取核对：6餐与派生摘要一致，未触碰主数据库。
+
+- Task2最终4b4de6d：需求和质量复核通过，20项Node测试实跑通过。补齐旧响应版本回退、失败字段随后保存、完成期间并发输入保护、上次心得和作品卡结果。
+- Task3开始接入App与全站暖色；不再重复修改已覆盖的账号注销逻辑。

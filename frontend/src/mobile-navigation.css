@@ -19,7 +19,7 @@
     inset: auto 0 0;
     z-index: 15;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
     margin: 0;
     padding: 8px max(12px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
@@ -63,7 +63,7 @@
 
 /* Keep selected dishes out of the cooking and archive surfaces. */
 @media(max-width:768px) {
-  .layout .sidebar nav { grid-template-columns:repeat(5,minmax(0,1fr)); }
+  .layout .sidebar nav { grid-template-columns:repeat(4,minmax(0,1fr)); }
   .layout .sidebar nav button { min-width:0; }
   .layout .selection-bar { left:50%; bottom:calc(80px + env(safe-area-inset-bottom)); flex-wrap:wrap; justify-content:center; width:calc(100% - 24px); gap:8px 13px; white-space:normal; }
   .layout .selection-preview { left:50%; bottom:calc(190px + env(safe-area-inset-bottom)); width:calc(100% - 24px); max-height:35vh; overflow:auto; }
