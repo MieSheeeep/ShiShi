@@ -323,6 +323,7 @@
 /* Immersive Cooking Flow */
 .kj-cook-flow { display: grid; gap: 14px; max-width: 720px; margin: 0 auto; }
 .kj-cook-topbar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -332,6 +333,8 @@
   background: var(--kj-surface);
   border: 1px solid var(--kj-line);
 }
+.kj-cook-topbar .kj-cook-switch { position: absolute; left: 50%; transform: translateX(-50%); }
+.kj-topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
 .kj-cook-title { min-width: 0; display: flex; flex-direction: column; }
 .kj-cook-title strong { font-family: 'Noto Serif SC', serif; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kj-cook-switch { display: inline-flex; background: var(--kj-soft); padding: 3px; border-radius: 8px; gap: 2px; }
@@ -351,7 +354,7 @@
   cursor: pointer;
   transition: background 0.2s ease;
 }
-.kj-progress-dots span.is-done { background: var(--kj-olive); }
+.kj-progress-dots span.is-past { background: var(--kj-olive); }
 .kj-progress-dots span.is-current { background: var(--kj-accent); }
 
 .kj-step-stage {
@@ -517,6 +520,16 @@
 
 .kj-manual-drawer { margin: 16px 0 0; display: grid; gap: 10px; }
 .kj-manual-fields { display: grid; grid-template-columns: minmax(0, 260px) auto auto; justify-content: start; gap: 10px; align-items: end; }
+.kj-feedback{display:grid;gap:2px;justify-items:start;margin:14px 0 4px;padding:12px 14px;border:1px solid #e3dcc6;border-radius:12px;background:linear-gradient(180deg,#fbf7ea,#f6f1e1);animation:kj-feedback-in .45s ease both}
+.kj-feedback-tag{padding:2px 8px;border-radius:999px;background:#8fa676;color:#fff;font-size:11px;letter-spacing:.04em}
+.kj-feedback strong{font-size:16px;font-family:'Noto Serif SC',Georgia,serif}
+.kj-feedback p{margin:0;font-size:12px;color:#8b937f}
+.kj-feedback.is-levelup{border-color:#d9b76a;background:linear-gradient(135deg,#fdf4d9,#f6e2b6 60%,#f3d79b);animation:kj-levelup-in .8s cubic-bezier(.2,.9,.2,1.05) both}
+.kj-feedback.is-levelup .kj-feedback-tag{background:#b8862f}
+.kj-feedback.is-levelup strong{color:#8a5a15}
+@keyframes kj-feedback-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes kj-levelup-in{0%{opacity:0;transform:scale(.9);box-shadow:0 0 0 0 rgba(217,183,106,0)}45%{opacity:1;transform:scale(1.03);box-shadow:0 0 0 8px rgba(217,183,106,.28)}100%{opacity:1;transform:scale(1);box-shadow:0 0 0 0 rgba(217,183,106,0)}}
+@media (prefers-reduced-motion:reduce){.kj-feedback,.kj-feedback.is-levelup{animation:none}}
 .kj-manual-secondary { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
 .kj-manual-secondary > label { margin: 0; max-width: 180px; }
 .kj-manual-pick { margin: 0; align-self: end; }
@@ -640,6 +653,8 @@
 .kj-detail-photos img { width: 100%; max-height: 280px; object-fit: cover; border-radius: 9px; border: 1px solid var(--kj-line); }
 .kj-detail-footer { display: flex; gap: 8px; flex-wrap: wrap; border-top: 1px solid var(--kj-line); padding-top: 16px; margin-top: 18px; }
 .kj-withdraw-confirm { flex-basis: 100%; background: var(--kj-accent-soft); padding: 14px; border-radius: 10px; display: flex; flex-wrap: wrap; gap: 8px; }
+.kj-quiet-danger { border: 1px solid #e0b4a2; background: transparent; color: #a6482c; border-radius: 999px; padding: 8px 16px; font: inherit; font-size: 13px; cursor: pointer; }
+.kj-quiet-danger:hover { background: var(--kj-accent-soft); }
 .kj-withdraw-confirm p { flex-basis: 100%; font-size: 13px; color: #8E331A; }
 .kj-history { margin-top: 14px; padding: 14px; border-radius: 10px; background: var(--kj-paper); border: 1px solid var(--kj-line); display: grid; gap: 8px; }
 .kj-outcome-tag { font-size: 12px; font-weight: 600; color: var(--kj-olive); padding: 2px 9px; border-radius: 999px; background: var(--kj-olive-soft); flex-shrink: 0; }
@@ -655,6 +670,8 @@
   .kj-calendar-layout, .kj-repertoire-grid, .kj-match-grid { grid-template-columns: minmax(0, 1fr); }
 }
 @media (max-width: 650px) {
+  .kj-cook-topbar { flex-wrap: wrap; }
+  .kj-cook-topbar .kj-cook-switch { position: static; transform: none; }
   .kj-stage-grid { grid-template-columns: minmax(0, 1fr); }
   .kj-form-row, .kj-manual-fields, .kj-ingredients { grid-template-columns: minmax(0, 1fr); }
   .kj-step-stage { min-height: 220px; padding: 18px 16px; }
