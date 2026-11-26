@@ -1,3 +1,5 @@
+import { defaultMealSlot } from './mealSlots.js'
+
 export const effectiveDishes = record => (record?.dishes || []).filter(d => ['success','practice'].includes(d.outcome))
 export const recordPhoto = record => effectiveDishes(record).flatMap(d=>d.photos || [])[0] || ''
 export function previousAttempt(records,key,currentId) {
@@ -187,7 +189,7 @@ export function buildCelebration(record, summary = {}, options = {}) {
 }
 const copy = value => JSON.parse(JSON.stringify(value))
 const blankSummary = () => ({meals:0,dishes:0,level:{number:1,title:'初入厨房',remaining:1,next_at:1},achievements:[],repertoire:[]})
-const initial = () => ({accountId:null,draft:null,drafts:[],records:[],total:0,page:1,summary:blankSummary(),loading:false,saving:false,finalizing:false,uploading:0,error:'',conflict:null,lastCompleted:null,recentRecord:null})
+const initial = () => ({accountId:null,draft:null,drafts:[],records:[],total:0,page:1,summary:blankSummary(),loading:false,saving:false,finalizing:false,uploading:0,error:'',conflict:null,lastCompleted:null,recentRecord:null,mealSlot:defaultMealSlot()})
 const mergePatch = (a,b) => ({...a,...b,...((a?.dishes||b.dishes)?{dishes:[...new Map([...(a?.dishes||[]),...(b.dishes||[])].map(d=>[d.id,{...(a?.dishes||[]).find(x=>x.id===d.id),...d}])).values()]}:{})})
 const applyLocal = (record,patch) => {for(const [key,value] of Object.entries(patch)){if(key==='dishes'){for(const d of value){const target=record.dishes.find(x=>x.id===d.id);if(target)Object.assign(target,copy(d))}}else record[key]=copy(value)}}
 
@@ -215,7 +217,8 @@ export function createJournal(request, reactive = value=>value) {
     async getRecord(id){const e=epoch;try{const record=await request('/cooking-sessions/'+id);if(!alive(e))return null;return dirty.has(id)?cache.get(id):remember(record)}catch(error){return fail(error,e)}},
     async history(key){const e=epoch;let page=1,items=[];do{const result=await request('/cooking-sessions?'+new URLSearchParams({state:'completed',dish_key:key,page,page_size:50}));if(!alive(e))return [];items.push(...result.items);if(items.length>=result.total)break;page++}while(true);return sameDishAttempts(items,key)},
     async loadMonth(month){const e=epoch;let page=1,items=[];do{const result=await request('/cooking-sessions?'+new URLSearchParams({state:'completed',month,page,page_size:50}));if(!alive(e))return [];items.push(...result.items.map(r=>dirty.has(r.id)?cache.get(r.id):remember(r)));if(items.length>=result.total)break;page++}while(true);return items},
-    async start(input){requireEditable();if(starting)return starting;const e=epoch;const signature=JSON.stringify(input);if(!pendingStart||pendingStart.signature!==signature)pendingStart={signature,body:{client_id:crypto.randomUUID(),...input}};const body=pendingStart.body;starting=(async()=>{try{const result=await request('/cooking-sessions','POST',body);if(!alive(e))return null;pendingStart=null;state.draft=remember(result);state.lastCompleted=null;state.error='';if(!state.drafts.some(r=>r.id===result.id))state.drafts.unshift(state.draft);return state.draft}catch(error){return fail(error,e)}finally{if(alive(e))starting=null}})();return starting},
+    async start(input){requireEditable();if(starting)return starting;const e=epoch;const payload={...input};if(payload.meal_slot==null)payload.meal_slot=state.mealSlot;const signature=JSON.stringify(payload);if(!pendingStart||pendingStart.signature!==signature)pendingStart={signature,body:{client_id:crypto.randomUUID(),...payload}};const body=pendingStart.body;starting=(async()=>{try{const result=await request('/cooking-sessions','POST',body);if(!alive(e))return null;pendingStart=null;state.draft=remember(result);state.lastCompleted=null;state.error='';if(!state.drafts.some(r=>r.id===result.id))state.drafts.unshift(state.draft);return state.draft}catch(error){return fail(error,e)}finally{if(alive(e))starting=null}})();return starting},
+    setMealSlot(id){state.mealSlot=id},
     async resume(id){requireEditable();const record=await state.getRecord(id);requireEditable();if(record?.state==='in_progress'){state.draft=record;state.lastCompleted=null}return record},
     patch(patch,id=state.draft?.id){
       try{requireEditable()}catch(error){return Promise.reject(error)}

@@ -17,6 +17,7 @@ class Request(BaseModel):
 
 class Dated(Request):
     cooked_on: str | None = None
+    meal_slot: Literal['breakfast', 'lunch', 'teatime', 'dinner', 'supper'] | None = None
 
     @field_validator('cooked_on')
     @classmethod

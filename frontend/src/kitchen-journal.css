@@ -515,8 +515,32 @@
 .kj-metric-bar strong { font-family: 'Noto Serif SC', serif; font-size: 20px; color: var(--kj-ink); }
 .kj-metric-bar span { font-size: 11.5px; color: var(--kj-muted); }
 
-.kj-manual-drawer { margin-bottom: 16px; display: grid; gap: 10px; }
-.kj-manual-fields { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(140px, 1fr) auto; gap: 10px; align-items: end; }
+.kj-manual-drawer { margin: 16px 0 0; display: grid; gap: 10px; }
+.kj-manual-fields { display: grid; grid-template-columns: minmax(0, 260px) auto auto; justify-content: start; gap: 10px; align-items: end; }
+.kj-manual-secondary { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.kj-manual-secondary > label { margin: 0; max-width: 180px; }
+.kj-manual-pick { margin: 0; align-self: end; }
+.kj-slot-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.kj-workspace .kj-slot-row { margin: 10px 0 4px; }
+.kj-slot-label { font-size: 11.5px; color: var(--kj-muted); margin-right: 2px; }
+.kj-slot-chip { padding: 5px 12px; border: 1px solid var(--kj-line); border-radius: 999px; background: transparent; font: inherit; font-size: 12px; color: var(--kj-muted); cursor: pointer; }
+.kj-slot-chip:hover { border-color: #c9cdba; color: var(--kj-ink); }
+.kj-slot-chip.is-active { border-color: #8b9a76; background: #eef1e4; color: #46543a; font-weight: 600; }
+.kj-slot-group { display: grid; gap: 10px; }
+.kj-slot-head { display: flex; align-items: baseline; gap: 8px; margin: 2px 0 0; font-size: 12.5px; font-weight: 600; color: #5c6553; }
+.kj-slot-head .kj-muted { font-size: 11px; font-weight: 400; }
+.modal.kj-picker-modal { width: 520px; max-height: 86vh; padding: 26px 24px; display: grid; gap: 12px; }
+.modal.kj-picker-modal h2 { margin: 0; font-size: 20px; }
+.kj-picker-modal .kj-slot-row { margin: 2px 0; }
+.kj-picker-search { display: flex; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--kj-line); border-radius: 10px; background: var(--kj-surface); }
+.kj-picker-search input { flex: 1; min-height: 40px; border: 0; background: transparent; font-size: 13px; }
+.kj-picker-list { display: grid; gap: 8px; max-height: 48vh; overflow: auto; }
+.kj-picker-row { width: 100%; justify-content: flex-start; text-align: left; padding: 9px 12px; }
+.kj-picker-art { flex: none; width: 42px; height: 42px; border-radius: 9px; overflow: hidden; display: grid; place-items: center; background: var(--kj-soft); font-size: 20px; }
+.kj-picker-art img { width: 100%; height: 100%; object-fit: cover; }
+.kj-picker-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.kj-picker-main strong { font-size: 14px; }
+.kj-picker-main small { color: var(--kj-muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .kj-calendar-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(290px, 1fr); gap: 16px; align-items: start; }
 .kj-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }

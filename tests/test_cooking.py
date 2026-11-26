@@ -39,6 +39,21 @@ def patch(client, session, **fields):
     return client.patch(f"/api/cooking-sessions/{session['id']}", json={'version': session['version'], **fields})
 
 
+def test_meal_slot_is_saved_and_editable(client):
+    session = create(client, meal_slot='lunch')
+    assert session['meal_slot'] == 'lunch'
+    assert client.get(f"/api/cooking-sessions/{session['id']}").json()['meal_slot'] == 'lunch'
+    updated = patch(client, session, meal_slot='dinner').json()
+    assert updated['meal_slot'] == 'dinner'
+    assert patch(client, updated, meal_slot='teatime').json()['meal_slot'] == 'teatime'
+
+
+def test_meal_slot_defaults_to_blank_and_rejects_unknown(client):
+    assert create(client)['meal_slot'] == ''
+    response = client.post('/api/cooking-sessions', json={'client_id': str(uuid4()), 'manual_name': '家常菜', 'meal_slot': 'brunch'})
+    assert response.status_code == 422
+
+
 def finish(client, session, outcome='success'):
     session = patch(client, session, dishes=[{'id': d['id'], 'outcome': outcome} for d in session['dishes']]).json()
     response = client.post(f"/api/cooking-sessions/{session['id']}/complete", json={'version': session['version']})

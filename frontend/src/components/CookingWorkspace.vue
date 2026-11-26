@@ -2,6 +2,7 @@
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { Camera, Check, Flame, ArrowRight, Trophy, RotateCcw, Sparkles, Plus, Shuffle, ChevronLeft, ChevronRight, List, Layers, UtensilsCrossed } from 'lucide-vue-next'
 import { effectiveDishes, recordPhoto, previousAttempt, buildChapterMap, pickBlindBox, buildCelebration } from '../cookingJournal.js'
+import { MEAL_SLOTS } from '../mealSlots.js'
 import CookingRecordDetail from './CookingRecordDetail.vue'
 import '../kitchen-journal.css'
 
@@ -149,6 +150,19 @@ function dismissDone() {
         <small>{{ chapterMap.totalCleared }}/{{ chapterMap.totalStages }}</small>
       </div>
     </header>
+
+    <div v-if="!draft" class="kj-slot-row" role="group" aria-label="选择这一餐的餐点">
+      <span class="kj-slot-label">这一餐</span>
+      <button
+        v-for="slot in MEAL_SLOTS"
+        :key="slot.id"
+        type="button"
+        :class="['kj-slot-chip', { 'is-active': journal.mealSlot === slot.id }]"
+        :aria-pressed="journal.mealSlot === slot.id"
+        :title="slot.range"
+        @click="journal.setMealSlot(slot.id)"
+      >{{ slot.label }}</button>
+    </div>
 
     <p v-if="journal.finalizing" class="kj-status-banner" role="status">正在保存这一餐，请稍候…</p>
     <div v-if="localError || journal.error" class="kj-error" role="alert">

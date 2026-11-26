@@ -6,7 +6,7 @@
 
 主导航为首页、按食材搜菜、厨房闯关、下厨记录。首页保留节气日历推荐与菜谱管理（导入食谱、搜索、标签筛选、菜谱卡片与选菜）；菜单与采购清单通过选菜浮条进入，账号管理与 AI 设置留在侧栏底部。
 
-1. 在首页菜谱库或按食材搜菜中选菜，点「去做饭」创建服务器草稿；也可在厨房闯关或下厨记录页手动补记。
+1. 在首页菜谱库或按食材搜菜中选菜，点「去做饭」创建服务器草稿；也可在厨房闯关或下厨记录页补记。补记时可手写菜名，也可点「从食谱中选择」挑一道自己的食谱，按所选日期带着这份材料与步骤进入记录，之后仍会按该菜品累计尝试次数。
 2. 在「厨房闯关」页可查看当前阶段与挑战卡（第一次开火、再试一次、三道家常菜、练成拿手菜、冰箱清库存实战），已通关卡片可直接回看触发记录；进入做饭后按快照备料、勾选步骤并随操作自动保存。
 3. 切到「收尾留念」，逐菜选择做成了、还想再练或这次没做；自己的成品图和心得均可跳过。
 4. 点「留下这一餐」，服务端确认成功后才出现留印反馈。确认过程中暂时锁定编辑，失败后保留草稿并恢复编辑。
@@ -28,10 +28,10 @@
 
 | 方法 | 路径 | 请求或说明 |
 | --- | --- | --- |
-| POST | `/api/cooking-sessions` | UUID `client_id`，`recipe_ids` 或 `manual_name` 二选一；可选 `cooked_on`，补记/再练可带本人 `dish_key` |
+| POST | `/api/cooking-sessions` | UUID `client_id`，`recipe_ids` 或 `manual_name` 二选一；可选 `cooked_on`、`meal_slot`，补记/再练可带本人 `dish_key` |
 | GET | `/api/cooking-sessions` | 查询 `state`、`month=YYYY-MM`、`dish_key`、`page`、`page_size`，返回 `{items,total,page,page_size}` |
 | GET | `/api/cooking-sessions/{id}` | 读取自己的会话，包括历史快照 |
-| PATCH | `/api/cooking-sessions/{id}` | `version` 必填，可修改 `cooked_on`、`title`、`note`、`dishes` |
+| PATCH | `/api/cooking-sessions/{id}` | `version` 必填，可修改 `cooked_on`、`meal_slot`、`title`、`note`、`dishes` |
 | POST | `/api/cooking-sessions/{id}/complete` | `{version}`，保存完成，重复完成返回同一记录 |
 | POST | `/api/cooking-sessions/{id}/withdraw` | `{version}`，撤回，重复撤回幂等 |
 | GET | `/api/cooking-summary` | 有效餐次、不同菜数、段位、本机百分位、印章和拿手菜聚合，字段见下 |
@@ -49,6 +49,12 @@ PATCH 的 dishes 为局部更新数组，每项 id 必须属于本会话，只�
 分页默认每页 12 条，最多 50，按用餐日期与 ID 倒序；不指定状态时排除撤回。日期严格校验真实的 YYYY-MM-DD，默认上海当天，补记不能选未来日期；开始、完成和更新时间存 UTC。title 最多 80 字，心得最多 1000 字，每道菜最多 12 张成品图。
 
 业务错误使用中文 `detail`。字段验证错误沿用当前项目的 Pydantic 422 结构，调用方需展示可理解的输入提示；不能把保存失败当成成功完成。
+
+## 餐点
+
+每条会话可选一个 `meal_slot`，取值固定为 `breakfast`、`lunch`、`teatime`、`dinner`、`supper`，对应早饭、午饭、下午茶、晚饭、夜宵；不传时保存为空字符串，表示未标注。该字段只描述这一餐属于哪个时段，不参与有效餐次、菜品计数和段位计算，历史记录保持未标注。
+
+前端新建记录时按当前时间预选（5–10 点早饭、10–14 点午饭、14–17 点下午茶、17–21 点晚饭、其余夜宵），用户可改；补记同一表单内也可选。下厨记录按日期查看时，同一天内按上述顺序分区展示，只显示有记录的分区，未标注的排在最后。餐点取值与默认时间段定义在 `frontend/src/mealSlots.js`，与后端 `cooking_schema.py` 的 `MealSlot` 必须同步。
 
 ## 菜品身份和图片来源
 

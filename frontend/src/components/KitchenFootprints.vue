@@ -1,11 +1,12 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { ArrowUpRight, Plus, ChevronLeft, ChevronRight, CalendarDays, BookMarked, History, Sparkles } from 'lucide-vue-next'
+import { computed, nextTick, ref, watch } from 'vue'
+import { ArrowUpRight, Plus, ChevronLeft, ChevronRight, CalendarDays, BookMarked, History, Sparkles, Search, X } from 'lucide-vue-next'
 import { effectiveDishes, recordPhoto, buildCalendarMonth } from '../cookingJournal.js'
+import { MEAL_SLOTS, MEAL_LABELS, defaultMealSlot } from '../mealSlots.js'
 import CookingRecordDetail from './CookingRecordDetail.vue'
 import '../kitchen-journal.css'
 
-const props = defineProps({ journal: { type: Object, required: true } })
+const props = defineProps({ journal: { type: Object, required: true }, recipes: { type: Array, default: () => [] } })
 const emit = defineEmits(['browse', 'cook', 'manual'])
 
 const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
@@ -18,8 +19,12 @@ const monthLoading = ref(false)
 const selectedDate = ref(today)
 const detail = ref(null)
 const showManual = ref(false)
+const manualDrawer = ref(null)
 const manual = ref('')
 const manualDate = ref(today)
+const manualSlot = ref(defaultMealSlot())
+const pickerOpen = ref(false)
+const pickerQuery = ref('')
 const localError = ref('')
 
 const repertoireFilter = ref('all')
@@ -31,6 +36,12 @@ let monthGeneration = 0
 const calendar = computed(() => buildCalendarMonth(activeMonth.value, monthRecords.value, today))
 const selectedDayCell = computed(() => calendar.value.cells.find(c => c.date === selectedDate.value) || null)
 const selectedRecords = computed(() => selectedDayCell.value?.records || [])
+const slotGroups = computed(() => {
+  const groups = MEAL_SLOTS.map(slot => ({ ...slot, records: selectedRecords.value.filter(r => r.meal_slot === slot.id) }))
+  const blank = selectedRecords.value.filter(r => !MEAL_LABELS[r.meal_slot])
+  if (blank.length) groups.push({ id: '', label: '未标注', records: blank })
+  return groups.filter(group => group.records.length)
+})
 const cookedCells = computed(() => calendar.value.cells.filter(c => c.inMonth && c.records.length).reverse())
 
 const filteredRepertoire = computed(() => {
@@ -40,6 +51,13 @@ const filteredRepertoire = computed(() => {
 })
 
 const allPhotos = record => effectiveDishes(record).flatMap(d => d.photos || [])
+
+const pickerList = computed(() => {
+  const keyword = pickerQuery.value.trim()
+  const list = props.recipes || []
+  if (!keyword) return list
+  return list.filter(r => (r.name + r.ingredients.map(i => i.name).join('')).includes(keyword))
+})
 
 const safely = async fn => {
   localError.value = ''
@@ -80,9 +98,29 @@ function goThisMonth() {
   selectedDate.value = today
 }
 
-function openManualFor(date = today) {
+async function openManualFor(date = today) {
   manualDate.value = date || today
+  manualSlot.value = defaultMealSlot()
   showManual.value = true
+  await nextTick()
+  manualDrawer.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
+function openPicker() {
+  pickerQuery.value = ''
+  localError.value = ''
+  pickerOpen.value = true
+}
+
+async function recordFromRecipe(recipe) {
+  await safely(async () => {
+    const r = await props.journal.start({ recipe_ids: [recipe.id], cooked_on: manualDate.value || today, meal_slot: manualSlot.value })
+    if (r) {
+      pickerOpen.value = false
+      showManual.value = false
+      emit('cook')
+    }
+  })
 }
 
 async function open(id) {
@@ -92,7 +130,7 @@ async function open(id) {
 
 async function addManual() {
   await safely(async () => {
-    const r = await props.journal.start({ manual_name: manual.value.trim(), cooked_on: manualDate.value || today })
+    const r = await props.journal.start({ manual_name: manual.value.trim(), cooked_on: manualDate.value || today, meal_slot: manualSlot.value })
     if (r) {
       manual.value = ''
       showManual.value = false
@@ -147,18 +185,6 @@ function onDetailClosed() {
         <Plus :size="15" /> 补记
       </button>
     </header>
-
-    <form v-if="showManual" class="kj-card kj-manual-drawer" @submit.prevent="addManual">
-      <div class="kj-spread">
-        <strong>补记一餐</strong>
-        <button type="button" class="kj-link" @click="showManual = false">收起</button>
-      </div>
-      <div class="kj-manual-fields">
-        <label>菜名<input id="footprint-manual" v-model="manual" required maxlength="80" placeholder="写下做过的菜名" /></label>
-        <label>日期<input v-model="manualDate" type="date" :max="today" /></label>
-        <button class="kj-primary" :disabled="journal.finalizing || !manual.trim()">去记录</button>
-      </div>
-    </form>
 
     <p v-if="localError || journal.error" class="kj-error" role="alert">{{ localError || journal.error }}</p>
 
@@ -239,7 +265,9 @@ function onDetailClosed() {
         <p v-if="monthLoading" class="kj-muted" role="status">读取中…</p>
 
         <div v-else-if="selectedRecords.length" class="kj-day-meals">
-          <article v-for="record in selectedRecords" :key="record.id" class="kj-card kj-meal-card">
+          <section v-for="group in slotGroups" :key="group.id || 'none'" class="kj-slot-group">
+            <h4 class="kj-slot-head">{{ group.label }}<span class="kj-muted">{{ group.records.length }} 餐</span></h4>
+            <article v-for="record in group.records" :key="record.id" class="kj-card kj-meal-card">
             <img v-if="recordPhoto(record)" class="kj-meal-cover" :src="recordPhoto(record)" :alt="effectiveDishes(record).map(d => d.snapshot.name).join('、') + '成品照'" loading="lazy" />
             <div v-if="allPhotos(record).length > 1" class="kj-filmstrip">
               <img v-for="(url, i) in allPhotos(record).slice(1, 5)" :key="url" :src="url" :alt="`过程照${i + 1}`" loading="lazy" />
@@ -263,6 +291,7 @@ function onDetailClosed() {
               </button>
             </div>
           </article>
+          </section>
         </div>
 
         <div v-else class="kj-card kj-day-empty">
@@ -344,6 +373,81 @@ function onDetailClosed() {
         <p class="kj-muted">{{ journal.summary.repertoire.length ? '该分类下暂无菜品' : '还没有做过的菜，去首页或闯关做第一顿吧' }}</p>
         <button class="kj-primary" @click="emit('browse')">去选一道菜</button>
       </div>
+    </div>
+
+    <form v-if="showManual" ref="manualDrawer" class="kj-card kj-manual-drawer" @submit.prevent="addManual">
+      <div class="kj-spread">
+        <strong>补记一餐</strong>
+        <button type="button" class="kj-link" @click="showManual = false">收起</button>
+      </div>
+      <div class="kj-manual-fields">
+        <label>手动输入菜名或从食谱选择<input id="footprint-manual" v-model="manual" required maxlength="80" placeholder="写下做过的菜名" /></label>
+        <button class="kj-primary" :disabled="journal.finalizing || !manual.trim()">去记录</button>
+        <button type="button" class="kj-soft-btn kj-manual-pick" @click="openPicker"><BookMarked :size="15" /> 从食谱选择</button>
+      </div>
+      <div class="kj-manual-secondary">
+        <label>日期<input v-model="manualDate" type="date" :max="today" /></label>
+        <div class="kj-slot-row" role="group" aria-label="这一餐的餐点">
+          <span class="kj-slot-label">餐点</span>
+          <button
+            v-for="slot in MEAL_SLOTS"
+            :key="slot.id"
+            type="button"
+            :class="['kj-slot-chip', { 'is-active': manualSlot === slot.id }]"
+            :aria-pressed="manualSlot === slot.id"
+            :title="slot.range"
+            @click="manualSlot = slot.id"
+          >{{ slot.label }}</button>
+        </div>
+      </div>
+    </form>
+
+    <div v-if="pickerOpen" class="overlay" @click.self="pickerOpen = false">
+      <section class="modal kj-picker-modal" role="dialog" aria-label="从食谱中选择一道菜补记">
+        <div class="kj-spread">
+          <h2>从食谱选择</h2>
+          <button type="button" class="kj-icon-btn" aria-label="关闭" @click="pickerOpen = false"><X :size="17" /></button>
+        </div>
+        <p class="kj-muted">记录日期：{{ manualDate || today }} · 先选餐点，再选中食谱即可开始记录</p>
+        <div class="kj-slot-row" role="group" aria-label="这一餐的餐点">
+          <span class="kj-slot-label">餐点</span>
+          <button
+            v-for="slot in MEAL_SLOTS"
+            :key="slot.id"
+            type="button"
+            :class="['kj-slot-chip', { 'is-active': manualSlot === slot.id }]"
+            :aria-pressed="manualSlot === slot.id"
+            :title="slot.range"
+            @click="manualSlot = slot.id"
+          >{{ slot.label }}</button>
+        </div>
+        <div class="kj-picker-search">
+          <Search :size="16" />
+          <input v-model="pickerQuery" placeholder="搜索菜名或食材" aria-label="搜索食谱" />
+        </div>
+        <p v-if="localError" class="kj-error" role="alert">{{ localError }}</p>
+        <div class="kj-picker-list">
+          <button
+            v-for="recipe in pickerList"
+            :key="recipe.id"
+            type="button"
+            class="kj-picker-row"
+            :disabled="journal.finalizing"
+            @click="recordFromRecipe(recipe)"
+          >
+            <span class="kj-picker-art">
+              <img v-if="recipe.cover" :src="recipe.cover" alt="" loading="lazy" />
+              <template v-else>{{ recipe.emoji || '🍲' }}</template>
+            </span>
+            <span class="kj-picker-main">
+              <strong>{{ recipe.name }}</strong>
+              <small>{{ recipe.ingredients.slice(0, 3).map(i => i.name).join(' · ') || '未填写材料' }}</small>
+            </span>
+            <ArrowUpRight :size="15" />
+          </button>
+          <p v-if="!pickerList.length" class="kj-muted">没有匹配的食谱，换个词试试，或返回手写菜名。</p>
+        </div>
+      </section>
     </div>
 
     <CookingRecordDetail :journal="journal" :record="detail" @close="onDetailClosed" @cook="emit('cook')" />
