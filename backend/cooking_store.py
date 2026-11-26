@@ -87,8 +87,6 @@ def summary(db, user_id):
                    ('signature-dish', '我的拿手菜', '同一道菜在三餐中做成')]
     achievements = {key: {'id': key, 'title': title, 'description': desc, 'unlocked': False,
                            'session_id': None, 'unlocked_at': None} for key, title, desc in definitions}
-    marks = dict(db.execute(text('SELECT dish_key,status FROM cooking_dishes WHERE user_id=:user'),
-                            {'user': user_id}).all())
     repertoire, practiced = {}, set()
 
     def unlock(key, session):
@@ -108,7 +106,7 @@ def summary(db, user_id):
             entry = repertoire.setdefault(key, {'dish_key': key, 'name': dish['snapshot']['name'],
                 'cover': dish['snapshot'].get('cover', ''), 'attempts': 0, 'successes': 0,
                 'last_note': '', 'last_cooked_on': session['cooked_on'],
-                'status': marks.get(key, 'tried'), 'sessions': []})
+                'status': 'tried', 'sessions': []})
             entry['attempts'] += 1
             entry['successes'] += dish['outcome'] == 'success'
             entry['last_note'] = dish['note']
@@ -118,11 +116,37 @@ def summary(db, user_id):
                 unlock('signature-dish', session)
             if len(repertoire) >= 3:
                 unlock('three-dishes', session)
-    thresholds = (0, 1, 3, 7, 15)
-    titles = ('初入厨房', '第一次开火', '渐入佳境', '家常小能手', '我的拿手菜')
-    index = max(i for i, threshold in enumerate(thresholds) if len(sessions) >= threshold)
-    next_at = thresholds[index + 1] if index < 4 else None
-    return {'meals': len(sessions), 'dishes': len(repertoire),
-            'level': {'number': index + 1, 'title': titles[index], 'next_at': next_at,
-                      'remaining': max(0, next_at - len(sessions)) if next_at else 0},
+    for entry in repertoire.values():
+        entry['status'] = ('signature' if entry['successes'] >= 3
+                           else 'practice' if entry['successes'] < entry['attempts'] else 'tried')
+    meals = len(sessions)
+    return {'meals': meals, 'dishes': len(repertoire),
+            'level': build_level(meals), 'percentile': account_percentile(db, user_id, meals),
             'achievements': list(achievements.values()), 'repertoire': list(repertoire.values())}
+
+
+# 七档段位 + 无上限的巅峰星数，每档 3 星、每 2 餐一星；与 frontend/src/cookingLevels.js 必须同步。
+TIERS = (('bronze', '倔强青铜', 0), ('silver', '秩序白银', 6), ('gold', '荣耀黄金', 12),
+         ('platinum', '尊贵铂金', 18), ('diamond', '永恒钻石', 24), ('star', '至尊星耀', 30),
+         ('king', '最强王者', 36), ('peak', '巅峰', 48))
+STAR_STEP, STARS_PER_TIER = 2, 3
+
+
+def build_level(meals):
+    index = max(i for i, (_, _, low) in enumerate(TIERS) if meals >= low)
+    tier_id, title, low = TIERS[index]
+    peak = index == len(TIERS) - 1
+    next_at = TIERS[index + 1][2] if not peak else None
+    star = (meals - low) // STAR_STEP + 1
+    return {'number': index + 1, 'tier': tier_id, 'title': title,
+            'star': star if peak else min(STARS_PER_TIER, star),
+            'next_at': next_at, 'remaining': max(0, next_at - meals) if next_at else 0}
+
+
+def account_percentile(db, user_id, meals):
+    """本机账号内的真实排名：统计有效餐次少于当前账号的账号占比。"""
+    ids = [row[0] for row in db.execute(text('SELECT id FROM users')).all()]
+    counts = dict(db.execute(text("SELECT user_id, COUNT(*) FROM cooking_sessions "
+                                  "WHERE state='completed' GROUP BY user_id")).all())
+    ahead = sum(1 for uid in ids if counts.get(uid, 0) < meals)
+    return {'percent': round(ahead / len(ids) * 100) if ids else 0, 'accounts': len(ids), 'ahead': ahead}

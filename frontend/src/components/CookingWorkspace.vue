@@ -2,6 +2,7 @@
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
 import { Camera, Check, Flame, ArrowRight, Trophy, RotateCcw, Sparkles, Plus, Shuffle, ChevronLeft, ChevronRight, List, Layers, UtensilsCrossed } from 'lucide-vue-next'
 import { effectiveDishes, recordPhoto, previousAttempt, buildChapterMap, pickBlindBox, buildCelebration } from '../cookingJournal.js'
+import { MEAL_SLOTS } from '../mealSlots.js'
 import CookingRecordDetail from './CookingRecordDetail.vue'
 import '../kitchen-journal.css'
 
@@ -14,6 +15,7 @@ const emit = defineEmits(['browse', 'pantry', 'recorded', 'records', 'start-reci
 
 const manual = ref('')
 const finishing = ref(false)
+const abandonConfirm = ref(false)
 const viewMode = ref('card')
 const activeDishIdx = ref(0)
 const activeStepIdx = ref(0)
@@ -111,6 +113,16 @@ async function complete() {
   })
 }
 
+async function abandonDraft() {
+  const record = draft.value
+  if (!record) return
+  await attempt(async () => {
+    await props.journal.withdraw(record.id, record.version)
+    abandonConfirm.value = false
+    finishing.value = false
+  })
+}
+
 async function startStage(stage) {
   if (stage.recipeId) {
     emit('start-recipe', stage.recipeId)
@@ -145,10 +157,23 @@ function dismissDone() {
       <h1>厨房闯关<span class="title-dot">。</span></h1>
       <div class="kj-level-chip" aria-label="当前阶段">
         <Trophy :size="14" />
-        <span>Lv.{{ journal.summary.level.number }} {{ journal.summary.level.title }}</span>
+        <span>{{ journal.summary.level.title }} {{ journal.summary.level.star }} 星</span>
         <small>{{ chapterMap.totalCleared }}/{{ chapterMap.totalStages }}</small>
       </div>
     </header>
+
+    <div v-if="!draft" class="kj-slot-row" role="group" aria-label="选择这一餐的餐点">
+      <span class="kj-slot-label">这一餐</span>
+      <button
+        v-for="slot in MEAL_SLOTS"
+        :key="slot.id"
+        type="button"
+        :class="['kj-slot-chip', { 'is-active': journal.mealSlot === slot.id }]"
+        :aria-pressed="journal.mealSlot === slot.id"
+        :title="slot.range"
+        @click="journal.setMealSlot(slot.id)"
+      >{{ slot.label }}</button>
+    </div>
 
     <p v-if="journal.finalizing" class="kj-status-banner" role="status">正在保存这一餐，请稍候…</p>
     <div v-if="localError || journal.error" class="kj-error" role="alert">
@@ -169,6 +194,20 @@ function dismissDone() {
       </div>
       <h2>{{ celebration.headline }}</h2>
       <p class="kj-muted">{{ celebration.subline }}</p>
+
+      <div v-if="journal.feedback" :class="['kj-feedback', { 'is-levelup': journal.feedback.levelUp }]" aria-live="polite">
+        <template v-if="journal.feedback.levelUp">
+          <span class="kj-feedback-tag">段位晋升</span>
+          <strong>{{ journal.feedback.levelUp.from }} → {{ journal.feedback.levelUp.to }}</strong>
+          <p>{{ journal.feedback.levelUp.to }} · {{ journal.feedback.star }} 星</p>
+        </template>
+        <template v-else>
+          <span class="kj-feedback-tag">{{ journal.feedback.starGained ? '+' + journal.feedback.starGained + ' 星' : '已记录' }}</span>
+          <strong>{{ journal.feedback.title }} · {{ journal.feedback.star }} 星</strong>
+          <p v-if="journal.feedback.nextTitle">距离「{{ journal.feedback.nextTitle }}」还差 {{ journal.feedback.remaining }} 餐</p>
+          <p v-else>巅峰星数不封顶，继续累积</p>
+        </template>
+      </div>
 
       <img v-if="recordPhoto(done)" class="kj-celebrate-photo" :src="recordPhoto(done)" alt="这一餐的成品照" />
       <div class="kj-dish-tags">
@@ -275,9 +314,20 @@ function dismissDone() {
           <button type="button" :class="['kj-mode-btn', { 'is-active': viewMode === 'card' }]" @click="viewMode = 'card'"><Layers :size="14" /> 卡片</button>
           <button type="button" :class="['kj-mode-btn', { 'is-active': viewMode === 'list' }]" @click="viewMode = 'list'"><List :size="14" /> 全览</button>
         </div>
-        <button v-if="!finishing" type="button" class="kj-primary" @click="finishing = true">出锅</button>
-        <button v-else type="button" class="kj-soft-btn" @click="finishing = false">回步骤</button>
+        <div class="kj-topbar-actions">
+          <button v-if="!finishing" type="button" class="kj-quiet-danger" @click="abandonConfirm = true">放弃</button>
+          <button v-if="!finishing" type="button" class="kj-primary" @click="finishing = true">出锅</button>
+          <button v-else type="button" class="kj-soft-btn" @click="finishing = false">回步骤</button>
+        </div>
       </header>
+
+      <div v-if="abandonConfirm" class="kj-withdraw-confirm" role="alertdialog" aria-label="放弃这一餐">
+        <p>放弃这一餐？记录会撤回，不计入成长，已上传的过程照不会自动删除。</p>
+        <div class="kj-actions">
+          <button type="button" :disabled="journal.finalizing" @click="abandonDraft">确定放弃</button>
+          <button type="button" @click="abandonConfirm = false">继续做</button>
+        </div>
+      </div>
 
       <!-- Multi-dish switcher -->
       <div v-if="!finishing && draft.dishes.length > 1" class="kj-chip-strip">
@@ -310,7 +360,7 @@ function dismissDone() {
         </div>
 
         <div v-if="activeSteps.length" class="kj-progress-dots" aria-hidden="true">
-          <span v-for="(s, i) in activeSteps" :key="s.id" :class="{ 'is-current': i === activeStepIdx, 'is-done': activeDish.completed_steps.includes(s.id) }" @click="activeStepIdx = i"></span>
+          <span v-for="(s, i) in activeSteps" :key="s.id" :class="{ 'is-current': i === activeStepIdx, 'is-past': i < activeStepIdx || activeDish.completed_steps.includes(s.id) }" @click="activeStepIdx = i"></span>
         </div>
 
         <article class="kj-card kj-step-stage">

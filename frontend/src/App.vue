@@ -5,7 +5,6 @@ import RecipeDetail from './components/RecipeDetail.vue'
 import TagManager from './components/TagManager.vue'
 import LoginView from './components/LoginView.vue'
 import DailyFeature from './components/DailyFeature.vue'
-import AiSetup from './components/AiSetup.vue'
 import AccountPanel from './components/AccountPanel.vue'
 import CookingWorkspace from './components/CookingWorkspace.vue'
 import KitchenFootprints from './components/KitchenFootprints.vue'
@@ -15,13 +14,12 @@ import FridgeManager from './components/FridgeManager.vue'
 import MenuReview from './components/MenuReview.vue'
 import { menuRecipes, restoreMenu, saveMenu } from './menuSelection'
 import { setAtHome, editAmount } from './shoppingState'
-import { Leaf, Refrigerator, ShoppingBasket, Plus, Search, ArrowUpRight, Clock3, X, Check, Link, Pencil, Trash2, ArrowRight, ChefHat, Flame, Download, Sparkles, Settings, House, NotebookPen } from 'lucide-vue-next'
+import { Leaf, Refrigerator, ShoppingBasket, Plus, Search, ArrowUpRight, Clock3, X, Check, Link, Pencil, Trash2, ArrowRight, ChefHat, Flame, Download, Sparkles, House, NotebookPen } from 'lucide-vue-next'
 const page=ref('recipes'), recipes=ref([]), query=ref(''), activeTags=ref([]), catalog=ref({groups:[],tags:[]}), tagManager=ref(false), selected=ref([]), detail=ref(null), editor=ref(null), importer=ref(false), url=ref(''), keyword=ref(''), aiPrompt=ref(''), importMeta=ref(null), busy=ref(false), notice=ref(''), error=ref(''), shopping=ref([]), have=ref([]), staples=ref([]), pantryStart=ref('inventory'), done=ref({}), barClosed=ref(false)
 const journal=useCookingJournal(), journalStarting=ref(false)
-const selectionVisible=computed(()=>['recipes','pantry'].includes(page.value))
 const cookingBusy=computed(()=>busy.value||journalStarting.value||journal.finalizing||journal.saving)
-const aiSetup=ref(false), accountOpen=ref(false), aiDishes=ref([]), aiBusy=ref(false), aiError=ref(''), aiOpen=ref(true)
-const user=ref(null), authReady=ref(false)
+const accountOpen=ref(false), aiDishes=ref([]), aiBusy=ref(false), aiError=ref(''), aiOpen=ref(true)
+const user=ref(null), authReady=ref(false), avatarUrl=ref(''), nickname=ref('')
 const nav=[['recipes','首页',House,'首页'],['pantry','按食材搜菜',Refrigerator,'搜菜'],['today','厨房闯关',Flame,'闯关'],['records','下厨记录',NotebookPen,'记录']]
 const pageLabel=computed(()=>({menu:'本次菜单',shopping:'采购清单'})[page.value]||nav.find(n=>n[0]===page.value)?.[1])
 watch(page,(value)=>{window.scrollTo({top:0});if(value==='records')journal.loadRecords({page:1,state:'completed',month:'',dish_key:''}).catch(()=>{})})
@@ -51,9 +49,11 @@ const clearConfirm=ref(false),cancelConfirm=ref(false),shoppingSaving=ref(false)
 watch(completed,()=>{if(completed.value!==buyList.value.length)clearConfirm.value=false})
 function flash(msg){notice.value=msg;setTimeout(()=>notice.value='',3500)}
 async function load(){const account=user.value?.id;const [rows,tags]=await Promise.all([api('/recipes'),api('/tags')]);if(!account||user.value?.id!==account)return;recipes.value=rows;catalog.value=tags;activeTags.value=activeTags.value.filter(id=>tags.tags.some(t=>t.id===id));if(detail.value)detail.value=rows.find(r=>r.id===detail.value.id)||null}
-async function start(){const account=user.value?.id;if(!account)return;try{await Promise.all([load(),journal.loadAccount(account)]);if(user.value?.id!==account)return;selected.value=restoreMenu(localStorage,account).filter(id=>recipes.value.some(r=>r.id===id));const [items,settings]=await Promise.all([api('/shopping'),api('/settings')]);if(user.value?.id!==account)return;shopping.value=items;have.value=settings.ingredients;staples.value=settings.staples}catch(e){if(user.value?.id===account)error.value=e.message}}
+async function start(){const account=user.value?.id;if(!account)return;try{await Promise.all([load(),journal.loadAccount(account)]);if(user.value?.id!==account)return;selected.value=restoreMenu(localStorage,account).filter(id=>recipes.value.some(r=>r.id===id));const [items,settings,avatar,profileName]=await Promise.all([api('/shopping'),api('/settings'),api('/profile/avatar'),api('/profile/nickname')]);if(user.value?.id!==account)return;shopping.value=items;have.value=settings.ingredients;staples.value=settings.staples;avatarUrl.value=avatar.url||'';nickname.value=profileName.nickname||''}catch(e){if(user.value?.id===account)error.value=e.message}}
+function setAvatar(value){avatarUrl.value=value||''}
+function setNickname(value){nickname.value=value||''}
 function inventoryChanged(settings){have.value=settings.ingredients;staples.value=settings.staples;aiDishes.value=[]}
-function leave(){journal.reset();journalStarting.value=false;user.value=null;page.value='recipes';pantryStart.value='inventory';recipes.value=[];catalog.value={groups:[],tags:[]};shopping.value=[];selected.value=[];done.value={};managing.value=false;picked.value=[];deleteConfirm.value=false;showMenu.value=false;detail.value=null;editor.value=null;tagManager.value=false;importer.value=false;have.value=[];staples.value=[];error.value='';activeTags.value=[];query.value='';listPage.value=1;barClosed.value=false;aiSetup.value=false;accountOpen.value=false;aiDishes.value=[];aiError.value=''}
+function leave(){journal.reset();journalStarting.value=false;user.value=null;page.value='recipes';pantryStart.value='inventory';recipes.value=[];catalog.value={groups:[],tags:[]};shopping.value=[];selected.value=[];done.value={};managing.value=false;picked.value=[];deleteConfirm.value=false;showMenu.value=false;detail.value=null;editor.value=null;tagManager.value=false;importer.value=false;have.value=[];staples.value=[];error.value='';activeTags.value=[];query.value='';listPage.value=1;barClosed.value=false;accountOpen.value=false;aiDishes.value=[];aiError.value='';avatarUrl.value='';nickname.value=''}
 async function authenticated(data){leave();user.value=data.user;await start()}
 async function boot(){if(!getToken()){authReady.value=true;return}try{user.value=await api('/auth/me')}catch{clearToken()}authReady.value=true;if(user.value)await start()}
 async function signOut(){try{await api('/auth/logout','POST')}catch{}clearToken();leave()}
@@ -98,13 +98,13 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
 <template>
 <div v-if="!authReady" class="auth-screen"><span class="muted">正在恢复会话…</span></div>
 <LoginView v-else-if="!user" @authenticated="authenticated"/>
-<div v-else class="layout" :class="{'has-selection':selected.length&&selectionVisible}">
+<div v-else class="layout" :class="{'has-selection':selected.length}">
   <aside class="sidebar">
     <a class="brand" href="#" @click.prevent="page='recipes'"><span class="brand-symbol"><Leaf :size="25"/></span><span>食拾<small>SHI SHI</small></span></a>
     <p class="sidebar-label">我的厨房</p>
     <nav aria-label="厨房导航"><button v-for="[id,label,icon,shortLabel] in nav" :key="id" :class="{active:page===id}" :aria-current="page===id?'page':undefined" @click="navigate(id)" :aria-label="label"><component :is="icon" :size="19"/><span class="nav-label">{{label}}</span><span class="mobile-nav-label" aria-hidden="true">{{shortLabel}}</span></button></nav>
     <div class="sidebar-note"><span>一餐一饭，好好生活。</span><p>把散落的好味道，<br>收进自己的小厨房。</p><Leaf :size="40" stroke-width="1"/></div>
-    <div class="profile"><span class="avatar">{{user.username.slice(0,1)}}</span><div>{{user.username}}<small><i></i> 已登录 · 数据保存在本机</small></div><button class="icon-button" @click="aiSetup=true" aria-label="AI 助手设置" title="AI 助手设置"><Sparkles :size="15"/></button><button class="icon-button" @click="accountOpen=true" aria-label="账号管理" title="账号管理"><Settings :size="16"/></button></div>
+    <div class="profile"><button class="avatar" @click="accountOpen=true" aria-label="账号管理" title="账号管理"><img v-if="avatarUrl" :src="avatarUrl" alt="我的头像"/><template v-else>{{user.username.slice(0,1)}}</template></button><div class="profile-meta"><strong>{{nickname||user.username}}</strong><small class="profile-level">{{journal.summary.level.title}} · {{journal.summary.level.star}} 星</small></div></div>
   </aside>
   <main>
     <header class="topbar"><span>我的厨房 <span class="slash">/</span> {{pageLabel}}</span><span class="top-right"><span class="top-tip"><Leaf :size="14"/> 每一份收藏，都是下一餐的灵感</span><button class="top-account top-account-btn" @click="accountOpen=true" title="账号管理"><i></i>{{user.username}}</button></span></header>
@@ -121,23 +121,22 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
       </template>
       <FridgeManager v-if="page==='pantry'" :recipes="recipes" :selected="selected" :initial-view="pantryStart" @change="inventoryChanged" @detail="detail=$event" @select="toggle" @cook="beginCooking([$event])" @ai-cook="aiCook"/>
       <CookingWorkspace v-if="page==='today'" :journal="journal" :recipes="recipes" :pantry-count="have.length+staples.length" @browse="page='recipes'" @pantry="goPantry" @records="page='records'" @start-recipe="beginCooking([$event])"/>
-      <KitchenFootprints v-if="page==='records'" :journal="journal" @browse="page='recipes'" @cook="openCooking"/>
+      <KitchenFootprints v-if="page==='records'" :journal="journal" :recipes="recipes" @browse="page='recipes'" @cook="openCooking"/>
       <div v-if="page==='menu'||page==='shopping'" class="shopping-flow-nav" aria-label="菜单与采购"><button :class="{chosen:page==='menu'}" @click="openMenu">本次菜单（{{selected.length}}）</button><button :class="{chosen:page==='shopping'}" @click="page='shopping'">采购清单</button></div>
       <MenuReview v-if="page==='menu'" :recipes="selectedRecipes" :busy="busy" :has-list="shopping.length>0" @remove="removeSelected" @browse="page='recipes'" @match="goPantry" @generate="generate" @detail="detail=$event" @shopping="page='shopping'"/>
       <template v-if="page==='shopping'"><section class="page-heading"><div><div class="eyebrow">A LITTLE PREPARATION</div><h1>采购清单<span class="title-dot">.</span></h1><p>把几道菜的材料，整理成一次从容的采购。</p></div><div class="heading-actions"><button v-if="buyList.length" class="secondary" @click="exportList"><Download :size="17"/> 导出清单</button></div></section><section v-if="shopping.length" class="shopping-panel"><div class="shopping-heading"><strong>这次要买的材料</strong><span>{{completed}} / {{buyList.length}} 已备齐</span></div><div class="progress"><span :style="{width:(buyList.length?completed/buyList.length*100:0)+'%'}"></span></div><div v-for="(item,index) in buyList" :key="index" class="shopping-row" :class="{isdone:item.checked}"><input type="checkbox" v-model="item.checked" :disabled="shoppingSaving" @change="persist" :aria-label="'已备齐'+item.name"/><div><strong>{{item.name}}</strong><button class="text-button pantry-toggle" :disabled="shoppingSaving" @click="markHome(item,true)">家里已备足</button><details><summary>{{item.sources.length}} 份用料来源</summary><p v-for="s in item.sources">{{s.recipe}}：{{s.original}}</p></details><p v-if="item.pantryNote" class="pantry-note">{{item.pantryNote}}</p></div><input class="amount-input" v-model="item.amount" :disabled="shoppingSaving" @change="amountChanged(item)" @keydown.enter="$event.target.blur()" :aria-label="item.name+'用量'"/></div><p v-if="!buyList.length" class="empty">这次的材料冰箱里都有了，不用再买。</p><div v-if="pantryList.length" class="pantry-have"><strong>冰箱里已有，不计入清单</strong><div class="chip-row"><span v-for="item in pantryList" :key="item.name" class="pantry-chip">{{item.name}}<em v-if="item.amount">{{item.amount}}</em><button type="button" :disabled="shoppingSaving" :aria-label="'改为采购'+item.name" @click="markHome(item,false)">改为采购</button></span></div></div><p class="muted">用量可直接修改；不同计量类别和模糊用量分别保留。</p><div class="shopping-foot"><button v-if="!clearConfirm&&!cancelConfirm" class="primary" :disabled="shoppingSaving||completed!==buyList.length" @click="clearConfirm=true"><Check :size="16"/> 完成并清空清单</button><button v-if="!clearConfirm&&!cancelConfirm" class="primary" @click="cancelConfirm=true">取消采购</button><template v-if="clearConfirm"><span class="muted">确认清空？已买的记录会一起移除。</span><button class="primary" @click="finishShopping">确定清空</button><button class="text-button" @click="clearConfirm=false">再想想</button></template><template v-else-if="cancelConfirm"><span class="muted">确认取消这次采购？清单会被清空。</span><button class="primary" @click="cancelShopping">确定取消</button><button class="text-button" @click="cancelConfirm=false">再想想</button></template></div></section><div v-else class="empty-panel"><ShoppingBasket :size="54" stroke-width="1"/><h2>下一餐，从选几道菜开始</h2><p>在食谱卡片上点「＋」，再生成合并采购清单。</p><div class="empty-actions"><button class="primary" @click="page='recipes'">去选菜 <ArrowRight :size="16"/></button><button class="primary" @click="goPantry"><Refrigerator :size="16"/> 去冰箱看看能做什么</button></div></div></template>
     </div>
   </main>
   <div v-if="managing&&page==='recipes'" class="selection-bar"><span><strong>{{picked.length}}</strong> 道食谱已选</span><template v-if="!deleteConfirm"><button class="text-button" @click="exitManage">取消</button><button class="danger-button" :disabled="!picked.length||busy" @click="deleteConfirm=true">删除所选</button></template><template v-else><span>确认删除？删除后无法恢复。</span><button class="danger-button" :disabled="busy" @click="removePicked">确定删除</button><button class="text-button" @click="deleteConfirm=false">再想想</button></template></div>
-  <Transition name="tab-pop"><button v-if="selected.length&&barClosed&&!managing&&selectionVisible" class="bar-tab" @click="barClosed=false" :aria-label="`展开已选菜单，${selected.length} 道`"><ShoppingBasket :size="18"/><span>{{selected.length}}</span></button></Transition>
-  <Transition name="fade-up"><div v-if="selected.length&&!barClosed&&!managing&&showMenu&&selectionVisible" class="selection-preview"><div class="preview-head"><strong>已选 {{selected.length}} 道</strong><div class="preview-head-actions"><button class="text-button danger-text" @click="clearSelected">清空</button><button class="text-button" @click="showMenu=false">关闭</button></div></div><div class="chip-row"><span v-for="r in selectedRecipes" :key="r.id" class="pantry-chip">{{r.name}}<button type="button" @click="removeSelected(r.id)" :aria-label="'移除'+r.name">×</button></span></div></div></Transition>
-  <Transition name="bar-collapse"><div v-if="selected.length&&!barClosed&&!managing&&selectionVisible" class="selection-bar"><span><strong>{{selected.length}}</strong> 道菜已选好</span><button class="text-button" @click="showMenu=!showMenu">{{showMenu?'隐藏':'查看'}}</button><button class="text-button" @click="closeBar">收起</button><button class="primary" :disabled="busy" @click="openMenu">确认菜单 <ArrowRight :size="16"/></button><button class="primary" :disabled="cookingBusy" @click="beginCooking(selected)">去做饭 <ChefHat :size="16"/></button></div></Transition>
+  <Transition name="tab-pop"><button v-if="selected.length&&barClosed&&!managing" class="bar-tab" @click="barClosed=false" :aria-label="`展开已选菜单，${selected.length} 道`"><ShoppingBasket :size="18"/><span>{{selected.length}}</span></button></Transition>
+  <Transition name="fade-up"><div v-if="selected.length&&!barClosed&&!managing&&showMenu" class="selection-preview"><div class="preview-head"><strong>已选 {{selected.length}} 道</strong><div class="preview-head-actions"><button class="text-button danger-text" @click="clearSelected">清空</button><button class="text-button" @click="showMenu=false">关闭</button></div></div><div class="chip-row"><span v-for="r in selectedRecipes" :key="r.id" class="pantry-chip">{{r.name}}<button type="button" @click="removeSelected(r.id)" :aria-label="'移除'+r.name">×</button></span></div></div></Transition>
+  <Transition name="bar-collapse"><div v-if="selected.length&&!barClosed&&!managing" class="selection-bar"><span><strong>{{selected.length}}</strong> 道菜已选好</span><button class="text-button" @click="showMenu=!showMenu">{{showMenu?'隐藏':'查看'}}</button><button class="text-button" @click="closeBar">收起</button><button class="primary" :disabled="busy" @click="openMenu">确认菜单 <ArrowRight :size="16"/></button><button class="primary" :disabled="cookingBusy" @click="beginCooking(selected)">去做饭 <ChefHat :size="16"/></button></div></Transition>
   <div v-if="notice" class="toast" role="status"><Check :size="17"/>{{notice}}</div>
   <div v-if="importer" class="overlay" @click.self="!busy&&(importer=false)"><section class="modal import-modal"><button class="close" @click="importer=false" :disabled="busy" aria-label="关闭"><X/></button><span class="modal-icon"><Link :size="27"/></span><div class="eyebrow">SAVE YOUR NEXT FAVORITE</div><h2>留住一道好味道</h2><form @submit.prevent="importLink"><label>链接或分享文案<textarea v-model="url" required rows="2" placeholder="粘贴豆果菜谱链接、小红书完整分享链接或 xhslink.com 短链"/></label><button class="primary wide" :disabled="busy||!url.trim()">{{busy?'正在读取页面并提取…':'提取食谱'}} <ArrowRight :size="17"/></button></form><form class="import-search" @submit.prevent="searchImport"><label>按菜名在豆果搜索<textarea v-model="keyword" required maxlength="30" rows="2" placeholder="例如：番茄炒蛋"/></label><button class="primary wide" :disabled="busy||!keyword.trim()">{{busy?'正在搜索并提取…':'搜索豆果'}} <Search :size="17"/></button></form><form class="import-ai" @submit.prevent="aiGenerate"><label>让 AI 写一道菜<small>描述口味、人数或手边食材，AI 生成草稿后仍需你核对</small><textarea v-model="aiPrompt" required maxlength="120" rows="2" placeholder="例如：30 分钟能做完的两人份下饭菜"/></label><button class="primary wide" :disabled="busy||!aiPrompt.trim()">{{busy?'AI 正在写…':'AI 生成食谱'}} <Sparkles :size="17"/></button></form><div v-if="error" class="alert">{{error}}</div><button class="text-button" @click="importer=false;edit()">也可以手动录入一道菜 <Pencil :size="14"/></button></section></div>
   <RecipeEditor v-if="editor" :key="importMeta?importMeta.index:'editor'" :recipe="editor" :catalog="catalog" :busy="busy" :error="error" :search-meta="importMeta" @cancel="editor=null;importMeta=null" @save="save" @next="nextImport" @catalog-change="load" @manage-tags="tagManager=true"/>
   <RecipeDetail v-if="detail" :key="detail.id" :recipe="detail" :done="done" :selected="selected.includes(detail.id)" @close="detail=null" @edit="edit" @remove="remove" @toggle="toggle" @cook="beginCooking([$event])"/>
   <TagManager v-if="tagManager" :catalog="catalog" @close="tagManager=false" @changed="load"/>
-  <AiSetup v-if="aiSetup" @close="aiSetup=false" @saved="aiSetup=false;flash('AI 已启用，可以去导入页试试')"/>
-  <AccountPanel v-if="accountOpen" :username="user.username" @close="accountOpen=false" @logout="signOut"/>
+  <AccountPanel v-if="accountOpen" :username="user.username" :nickname="nickname" :avatar="avatarUrl" :level="journal.summary.level" :meals="journal.summary.meals" :percentile="journal.summary.percentile" @close="accountOpen=false" @logout="signOut" @avatar-changed="setAvatar" @nickname-changed="setNickname"/>
 
 </div>
 </template>
@@ -165,6 +164,50 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
 .ai-setup label{margin-top:12px}
 .ai-later{display:block;margin:14px auto 0;font-size:12px}
 .account-panel{padding:34px 36px;max-height:88vh;overflow:auto}
+.account-head{display:flex;align-items:center;gap:16px}
+.base-line{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.base-line .secondary,.base-line .text-button{margin:0}
+.account-username{margin:4px 0 12px;font-size:12.5px;color:#3f4a36}
+.account-panel .nickname-line{display:flex;align-items:flex-end;gap:8px;margin:0}
+.account-panel .nickname-line label{flex:1;min-width:0;margin:0}
+.account-panel .nickname-line input{min-height:44px;width:100%}
+.account-panel .nickname-line .primary{flex:none;margin:0;height:44px;padding:0 18px;white-space:nowrap}
+.nickname-ok{margin:0;font-size:11px;color:#57783f}
+.account-head .modal-icon{margin-bottom:0;flex:none}
+.account-head-text{min-width:0}
+.account-head-text h2{margin:2px 0 4px}
+.account-head-text .muted{margin:0;font-size:11px}
+.level-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.level-head .secondary{flex:none;margin:0}
+.level-label{display:block;font-size:10px;letter-spacing:.12em;color:#98a08e}
+.level-title{display:block;margin-top:3px;font-size:17px;font-family:'Noto Serif SC',Georgia,serif}
+.level-hint{margin:4px 0 0;font-size:11px;color:#8b937f}
+.level-bar{margin-top:12px;height:6px;border-radius:999px;background:#eceee5;overflow:hidden}
+.level-bar span{display:block;height:100%;border-radius:999px;background:#8fa676;transition:width .3s ease}
+.level-ladder{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px}
+.level-ladder li{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid #eceee5;border-radius:9px}
+.level-ladder li.current{border-color:#9aa88a;background:#f7f8f2}
+.level-main{display:flex;align-items:center;gap:12px;min-width:0}
+.level-text{min-width:0}
+.level-badge{position:relative;flex:none;width:52px;height:52px;border-radius:14px;display:grid;place-items:center;color:#fff;font-size:24px;font-family:'Noto Serif SC',Georgia,serif;letter-spacing:0;box-shadow:inset 0 -6px 12px rgba(0,0,0,.12)}
+.level-badge em{position:absolute;right:-6px;bottom:-7px;font-style:normal;font-size:9px;letter-spacing:1px;color:#b07c26;background:#fff;border:1px solid #eadfc8;border-radius:999px;padding:1px 5px}
+.level-badge.is-bronze{background:linear-gradient(135deg,#a97655,#6d4632)}
+.level-badge.is-silver{background:linear-gradient(135deg,#c2cbd2,#87939d)}
+.level-badge.is-gold{background:linear-gradient(135deg,#e6bb63,#b17f28)}
+.level-badge.is-platinum{background:linear-gradient(135deg,#7ecdc6,#3d8d88)}
+.level-badge.is-diamond{background:linear-gradient(135deg,#93bdea,#4a7fc1)}
+.level-badge.is-star{background:linear-gradient(135deg,#a291e6,#6952bd)}
+.level-badge.is-king{background:linear-gradient(135deg,#eab254,#a4551d)}
+.level-badge.is-peak{background:linear-gradient(135deg,#f3d67a,#b1371f 60%,#5d1d12);box-shadow:inset 0 -6px 12px rgba(0,0,0,.18),0 0 0 1px rgba(255,236,190,.35)}
+.level-rank{margin:5px 0 0;font-size:11px;color:#6f7a63}
+.level-ladder .level-badge{width:28px;height:28px;border-radius:8px;font-size:14px;box-shadow:none}
+.level-ladder .level-badge em{display:none}
+.level-ladder strong{font-size:12.5px}
+.level-ladder p{margin:2px 0 0;font-size:11px;line-height:1.6;color:#8b937f}
+.level-rule{margin:12px 0 0;font-size:11px;color:#8b937f}
+.account-tabs{display:flex;gap:6px;margin:18px 0 4px;padding:4px;border:1px solid #eceee5;border-radius:10px;background:#f7f8f2}
+.account-tabs button{flex:1;padding:9px 12px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;font-weight:600;color:#7c8571;cursor:pointer}
+.account-tabs button.chosen{background:#fff;color:#3f5334;box-shadow:0 1px 3px rgba(76,83,58,.12)}
 .account-block{margin-top:22px;padding-top:18px;border-top:1px solid #eceee5}
 .account-block h3{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:15px}
 .account-block label{margin-top:10px}
@@ -179,6 +222,19 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
 .top-account-btn:hover{background:var(--soft)}
 .top-account i{display:inline-block;width:6px;height:6px;background:#73976b;border-radius:50%}
 .profile{flex-wrap:wrap}
+.profile .avatar{border:0;padding:0;overflow:hidden;cursor:pointer;font-size:19px;width:48px;height:48px;transition:box-shadow .15s ease}
+.profile .avatar:hover{box-shadow:0 0 0 2px rgba(198,97,63,.35)}
+.profile .avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.profile-meta{display:grid;gap:4px;min-width:0}
+.profile-meta strong{font-size:12.5px;font-weight:600;color:var(--ink,#191816);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-meta .profile-level{margin:0;font-size:10.5px;color:#897755}
+.avatar-editor{display:grid;grid-template-columns:62px minmax(0,1fr);gap:16px;align-items:start;margin-top:12px}
+.account-panel .avatar-preview{width:62px;height:62px;font-size:24px;overflow:hidden;background:#ece6d8;color:#897755;font-family:serif;border-radius:50%;display:grid;place-items:center}
+.account-panel .avatar-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.avatar-actions{display:grid;gap:8px;min-width:0}
+.avatar-actions .secondary{margin:0}
+.avatar-actions .avatar-hint{margin:0;font-size:11px;color:#8b937f}
+.avatar-file{display:none}
 .auth-screen{min-height:100vh;display:grid;place-items:center;background:#f8f9f5}
 .card-art.has-cover{background:#e9ece2}
 .card-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 import httpx
 from sqlalchemy import create_engine, event, text
 
-from backend import ai_recipe, auth, cooking, deploy_guard, douguo_search, fridge, meal_plan, recipe_store as store
+from backend import ai_recipe, auth, cooking, deploy_guard, douguo_search, fridge, meal_plan, profile, recipe_store as store
 from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
@@ -101,6 +101,7 @@ def current_user(authorization: str = Header(default='')) -> dict:
 
 fridge.install(app, engine, current_user)
 cooking.install(app, engine, current_user)
+profile.install(app, engine, current_user)
 
 
 @app.get('/api/health')

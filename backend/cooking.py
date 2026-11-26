@@ -64,7 +64,8 @@ def install(app, engine, current_user):
                                 {'user': user['id']}).scalar_one()
             moment = store.now()
             session = {'number': number, 'client_id': body.client_id, 'version': 1, 'state': 'in_progress',
-                       'cooked_on': body.cooked_on or schema.shanghai_today().isoformat(), 'title': '', 'note': '',
+                       'cooked_on': body.cooked_on or schema.shanghai_today().isoformat(), 'meal_slot': body.meal_slot or '',
+                       'title': '', 'note': '',
                        'started_at': moment, 'completed_at': None, 'updated_at': moment, 'dishes': dishes}
             result = db.execute(text('INSERT INTO cooking_sessions(user_id,number,client_id,version,state,cooked_on,'
                 'started_at,completed_at,updated_at,body) VALUES(:user,:number,:client_id,:version,:state,:cooked_on,'
