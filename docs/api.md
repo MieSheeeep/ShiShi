@@ -101,7 +101,7 @@
 
 ### 食材匹配结果 MatchResult
 
-食谱字段加上 `missing`：当前用户缺少的材料名数组，按缺料数量和比例升序排序。
+食谱字段加上 `missing`（还缺的材料名）、`matched`（命中的现有食材）与 `ratio`（主料命中占比）。匹配做食材归一（西红柿→番茄）与双向子串模糊匹配，缺料越少、主料越齐越靠前。
 
 ### 常备食材 Settings
 
@@ -164,8 +164,8 @@
 | PUT | `/api/ai/settings` | 是 | 保存 AI 配置 `{"base": "...", "model": "...", "key": "..."}` |
 | GET | `/api/xhs/settings` | 是 | 读取小红书登录态（Cookie 只回显末六位） |
 | PUT | `/api/xhs/settings` | 是 | 保存或清除小红书登录态 `{"cookie": "..."}`；空串表示退出，格式不符返回 422 |
-| POST | `/api/ai/suggest` | 是 | 按食材推荐菜式 `{"ingredients": [], "staples": []}`，返回 `{"dishes": [{"name": "...", "reason": "..."}]}` |
-| POST | `/api/match` | 是 | 按现有食材匹配食谱 `{"ingredients": [], "staples": []}` |
+| POST | `/api/ai/suggest` | 是 | 按食材推荐菜式 `{"ingredients": [], "staples": []}`，返回 `{"dishes": [{"name": "...", "reason": "..."}], "from_cache": false}`；感知已有食谱避免重复推荐，结果按食材组合缓存，命中缓存不再计费 |
+| POST | `/api/match` | 是 | 按现有食材模糊匹配食谱 `{"ingredients": [], "staples": []}`，返回带 `matched`/`missing`/`ratio` 的食谱列表，按缺料排序 |
 | POST | `/api/shopping` | 是 | 按食谱 ID 合并采购清单 `{"ids": [1, 2]}`；按冰箱库存扣减，库存足够的条目标记为 `pantry` 且不计入待买 |
 | GET | `/api/shopping` | 是 | 读取当前用户的采购清单 |
 | PUT | `/api/shopping` | 是 | 覆盖保存采购清单 `{"items": [...]}` |

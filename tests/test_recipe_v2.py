@@ -225,16 +225,17 @@ def test_ai_suggest_returns_dishes_and_surfaces_errors(tmp_path,monkeypatch):
     c=client_for(tmp_path,monkeypatch);sign_in(c)
     import backend.main as module
     seen={}
-    def fake(settings,ingredients,staples):
+    def fake(settings,recipes,ingredients,staples,cache=None):
         seen.update({'ingredients':ingredients,'staples':staples})
-        return [{'name':'番茄炒蛋','reason':'有番茄和鸡蛋'}]
-    monkeypatch.setattr(module.ai_recipe,'suggest',fake)
+        return [{'name':'番茄炒蛋','reason':'有番茄和鸡蛋'}], False
+    monkeypatch.setattr(module.recipe_search,'suggest_with_ai',fake)
     response=c.post('/api/ai/suggest',json={'ingredients':[{'name':'番茄','amount':'2','unit':'个'}],'staples':[{'name':'盐'}]})
     assert response.status_code==200
     assert response.json()['dishes']==[{'name':'番茄炒蛋','reason':'有番茄和鸡蛋'}]
+    assert response.json()['from_cache'] is False
     assert seen=={'ingredients':['番茄'],'staples':['盐']}
-    def boom(settings,ingredients,staples): raise ValueError('AI 没有给出可用的菜名，请再试一次')
-    monkeypatch.setattr(module.ai_recipe,'suggest',boom)
+    def boom(settings,recipes,ingredients,staples,cache=None): raise ValueError('AI 没有给出可用的菜名，请再试一次')
+    monkeypatch.setattr(module.recipe_search,'suggest_with_ai',boom)
     assert c.post('/api/ai/suggest',json={'ingredients':[],'staples':[]}).status_code==422
 
 
