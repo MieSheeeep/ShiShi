@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 import httpx
 from sqlalchemy import create_engine, event, text
 
-from backend import ai_recipe, auth, cooking, deploy_guard, douguo_search, fridge, meal_plan, recipe_store as store
+from backend import ai_recipe, auth, cooking, deploy_guard, douguo_search, fridge, meal_plan, recipe_search, recipe_store as store
 from backend.core import canonical_url, merge_ingredients, normalize, pantry_shortfall, quantity
 from backend.crawler import fetch_recipe
 from backend.media import MEDIA_DIR, download_recipe_images, save_upload
@@ -446,22 +446,24 @@ def verify_ai(body: AiConfig, user: dict = Depends(current_user)):
 
 @app.post('/api/ai/suggest')
 def suggest_dishes(body: Match, user: dict = Depends(current_user)):
-    """按冰箱现有食材给出候选菜名与理由，满意后再单独生成食谱。"""
+    """按现有食材推荐候选菜名与理由：感知已有食谱并缓存，避免重复推荐与重复计费。"""
     try:
-        dishes = ai_recipe.suggest(ai_settings(user['id']), [item.name for item in body.ingredients], [item.name for item in body.staples])
+        dishes, from_cache = recipe_search.suggest_with_ai(
+            ai_settings(user['id']),
+            store.list_recipes(engine, user['id']),
+            [item.name for item in body.ingredients],
+            [item.name for item in body.staples],
+        )
     except ValueError as error:
         raise HTTPException(422, str(error))
-    return {'dishes': dishes}
+    return {'dishes': dishes, 'from_cache': from_cache}
 
 
 @app.post('/api/match')
 def match(body: Match, user: dict = Depends(current_user)):
-    have = {normalize(item.name) for item in body.ingredients + body.staples}
-    rows = []
-    for recipe in store.list_recipes(engine, user['id']):
-        missing = list(dict.fromkeys(item['name'] for item in recipe['ingredients'] if normalize(item['name']) not in have))
-        rows.append(dict(recipe, missing=missing))
-    return sorted(rows, key=lambda recipe: (len(recipe['missing']), len(recipe['missing']) / len(recipe['ingredients'])))
+    have = [normalize(item.name) for item in body.ingredients + body.staples]
+    staples = [normalize(item.name) for item in body.staples]
+    return recipe_search.fuzzy_rank(store.list_recipes(engine, user['id']), have, staples)
 
 
 @app.post('/api/shopping')
