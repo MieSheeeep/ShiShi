@@ -330,11 +330,6 @@ function onDetailClosed() {
           <p v-if="dish.last_note" class="kj-quote">{{ dish.last_note }}</p>
 
           <div class="kj-dish-controls">
-            <select class="kj-mini-select" aria-label="菜品状态" :disabled="journal.finalizing" :value="dish.status" @change="safely(() => journal.markDish(dish.dish_key, $event.target.value))">
-              <option value="tried">试过</option>
-              <option value="practice">练习中</option>
-              <option value="signature">我的拿手菜</option>
-            </select>
             <div class="kj-actions">
               <button @click="toggleEvolution(dish)">
                 <History :size="14" /> {{ expandedDish === dish.dish_key ? '收起' : '进化史' }}

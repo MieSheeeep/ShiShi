@@ -87,8 +87,6 @@ def summary(db, user_id):
                    ('signature-dish', '我的拿手菜', '同一道菜在三餐中做成')]
     achievements = {key: {'id': key, 'title': title, 'description': desc, 'unlocked': False,
                            'session_id': None, 'unlocked_at': None} for key, title, desc in definitions}
-    marks = dict(db.execute(text('SELECT dish_key,status FROM cooking_dishes WHERE user_id=:user'),
-                            {'user': user_id}).all())
     repertoire, practiced = {}, set()
 
     def unlock(key, session):
@@ -108,7 +106,7 @@ def summary(db, user_id):
             entry = repertoire.setdefault(key, {'dish_key': key, 'name': dish['snapshot']['name'],
                 'cover': dish['snapshot'].get('cover', ''), 'attempts': 0, 'successes': 0,
                 'last_note': '', 'last_cooked_on': session['cooked_on'],
-                'status': marks.get(key, 'tried'), 'sessions': []})
+                'status': 'tried', 'sessions': []})
             entry['attempts'] += 1
             entry['successes'] += dish['outcome'] == 'success'
             entry['last_note'] = dish['note']
@@ -118,6 +116,9 @@ def summary(db, user_id):
                 unlock('signature-dish', session)
             if len(repertoire) >= 3:
                 unlock('three-dishes', session)
+    for entry in repertoire.values():
+        entry['status'] = ('signature' if entry['successes'] >= 3
+                           else 'practice' if entry['successes'] < entry['attempts'] else 'tried')
     meals = len(sessions)
     return {'meals': meals, 'dishes': len(repertoire),
             'level': build_level(meals), 'percentile': account_percentile(db, user_id, meals),

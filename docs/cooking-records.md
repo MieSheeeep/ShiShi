@@ -36,9 +36,9 @@
 | POST | `/api/cooking-sessions/{id}/withdraw` | `{version}`，撤回，重复撤回幂等 |
 | GET | `/api/cooking-summary` | 有效餐次、不同菜数、段位、本机百分位、印章和拿手菜聚合，字段见下 |
 
-`/api/cooking-summary` 返回 `{meals, dishes, level, percentile, achievements, repertoire}`：`level` 含 `number`（1–8）、`tier`（`bronze`/`silver`/`gold`/`platinum`/`diamond`/`star`/`king`/`peak`）、`title`、`star`（档内星级，巅峰档无上限）、`next_at`（下一档门槛餐次，巅峰为 `null`）、`remaining`（距下一档还差几餐）；`percentile` 含 `percent`（本机超过的账号百分比）、`accounts`（本机账号数）、`ahead`（有效餐次更少的账号数），只在本机 SQLite 内比较。
+`/api/cooking-summary` 返回 `{meals, dishes, level, percentile, achievements, repertoire}`：`level` 含 `number`（1–8）、`tier`（`bronze`/`silver`/`gold`/`platinum`/`diamond`/`star`/`king`/`peak`）、`title`、`star`（档内星级，巅峰档无上限）、`next_at`（下一档门槛餐次，巅峰为 `null`）、`remaining`（距下一档还差几餐）；`percentile` 含 `percent`（本机超过的账号百分比）、`accounts`（本机账号数）、`ahead`（有效餐次更少的账号数），只在本机 SQLite 内比较。`repertoire[].status` 为派生字段，取值 `tried`、`practice`、`signature`。
 
-| PUT | `/api/cooking-dishes` | `{dish_key,status}`，手动标记 `tried`、`practice` 或 `signature` |
+| PUT | `/api/cooking-dishes` | `{dish_key,status}`，仅保留接口兼容；进化史状态已改为按记录自动判定，手动标记不再影响展示与成就 |
 
 创建时食谱快照由后端读取当前账号的食谱，不能提交任意用户的食谱编号。手动补记必须填写非空菜名，不能同时提供食谱列表。重复 client_id 在该账号下返回已经创建的记录，网络重试不会另建一餐。
 
@@ -78,6 +78,8 @@ PATCH 的 dishes 为局部更新数组，每项 id 必须属于本会话，只�
 | 8 | 巅峰 | 48 | 星数无上限，每 2 餐一星 |
 
 账号面板的「账号管理」页用渐变字牌显示当前段位与星级，展示距下一档的进度，并可展开查看全部段位、门槛与升级规则；卡片同时显示「本机超过 X% 的账号」——该百分比只在本机 SQLite 的账号之间比较，只有一个账号时显示暂无可比较。前端展示表在 `frontend/src/cookingLevels.js`，实际计算在后端 `backend/cooking_store.py` 的 `TIERS` 与 `STAR_STEP`，改档位或门槛时两处必须同步。
+
+拿手菜进化史的状态按记录自动判定：累计做成 3 次及以上为「我的拿手菜」，存在未做成的尝试但未满 3 次为「练习中」，其余为「试过」。每次完成或撤回后由摘要接口重新计算，界面不再提供手选下拉；历史上通过 `PUT /api/cooking-dishes` 写入的手动标记不再参与判定。
 
 首批印章：第一次开火（第一餐）；再试一次（同菜失手后在另一餐再尝试）；三道家常菜（三种菜）；我的拿手菜（同菜三个会话做成）。每枚印章保留触发会话 ID 和完成时间，可回到那一餐。
 

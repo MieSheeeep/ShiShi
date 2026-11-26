@@ -231,6 +231,15 @@ def test_level_tiers_and_stars():
     assert build_level(480)['star'] == 217
 
 
+def test_manual_mark_does_not_change_status(client):
+    first = finish(client, create(client), 'practice')
+    key = first['dishes'][0]['dish_key']
+    assert client.put('/api/cooking-dishes', json={'dish_key': key, 'status': 'signature'}).status_code == 200
+    summary = client.get('/api/cooking-summary').json()
+    assert summary['repertoire'][0]['status'] == 'practice'
+    assert not next(a for a in summary['achievements'] if a['id'] == 'signature-dish')['unlocked']
+
+
 def test_percentile_compares_local_accounts(client):
     finish(client, create(client))
     other = client.post('/api/auth/register', json={'username': 'second-user', 'password': 'secret123'}).json()
@@ -355,3 +364,20 @@ def test_session_paths_reject_out_of_range_ids(client, sid):
                     c.post(url + '/complete', json={'version': 1}).status_code,
                     c.post(url + '/withdraw', json={'version': 1}).status_code]
         assert statuses == [422] * 4
+
+
+def status_of(client):
+    return client.get('/api/cooking-summary').json()['repertoire'][0]['status']
+
+
+def test_repertoire_status_follows_records_automatically(client):
+    food = recipe(client)
+    finish(client, from_recipes(client, [food['id']]))
+    assert status_of(client) == 'tried'
+    failed = finish(client, from_recipes(client, [food['id']]), 'practice')
+    assert status_of(client) == 'practice'
+    finish(client, from_recipes(client, [food['id']]))
+    finish(client, from_recipes(client, [food['id']]))
+    assert status_of(client) == 'signature'
+    client.post(f"/api/cooking-sessions/{failed['id']}/withdraw", json={'version': failed['version']})
+    assert status_of(client) == 'signature'
