@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createJournal, effectiveDishes, recordPhoto, groupMonths, sameDishAttempts, previousAttempt, buildCalendarMonth, buildChallenges, buildChapterMap, pickBlindBox, buildCelebration } from '../frontend/src/cookingJournal.js'
+import { createJournal, effectiveDishes, recordPhoto, groupMonths, sameDishAttempts, previousAttempt, buildCalendarMonth, buildChallenges, buildChapterMap, pickBlindBox, buildCelebration, levelFeedback } from '../frontend/src/cookingJournal.js'
 
 const dish = (outcome='success', key='opaque:no-parsing') => ({id:'d1',dish_key:key,snapshot:{name:'汤',cover:'/reference.jpg',steps:[]},outcome,note:'',photos:[],completed_steps:[]})
 const session = (id=1) => ({id,version:1,state:'in_progress',cooked_on:'2026-11-20',title:'',note:'',dishes:[dish()]})
@@ -32,3 +32,13 @@ test('buildChallenges derives progress and actionable targets from summary and p
 test('loadMonth fetches all pages for a month without overwriting paginated state.records',async()=>{const t=transport(),pages=[];const j=createJournal(async(path,...args)=>{if(path.includes('month=2026-11')&&path.includes('page_size=50')){const p=Number(new URLSearchParams(path.split('?')[1]).get('page'));pages.push(p);return {items:[{...session(p),state:'completed',cooked_on:'2026-11-21'}],total:2}}return t.request(path,...args)});await j.loadAccount(1);const items=await j.loadMonth('2026-11');assert.deepEqual(pages,[1,2]);assert.equal(items.length,2)})
 test('buildChapterMap marks cleared and revenge stages and links built-in recipes',()=>{const map=buildChapterMap({repertoire:[{name:'番茄炒蛋',attempts:1,successes:1,sessions:[10],dish_key:'k1'},{name:'香煎土豆',attempts:1,successes:0,sessions:[11],dish_key:'k2'}]},[{id:5,name:'番茄炒蛋',cover:'/a.jpg'}]);const s1=map.chapters[0].stages[0];assert.equal(s1.state,'cleared');assert.equal(s1.recipeId,5);assert.equal(map.chapters[1].stages[0].state,'revenge');assert.equal(map.totalCleared,1)})
 test('pickBlindBox and buildCelebration generate playable twist and tailored encouragement',()=>{const box=pickBlindBox([{id:1,name:'番茄炒蛋'}],{repertoire:[]},0.1);assert.ok(box.name&&box.twist);const rev=buildCelebration({...session(),state:'completed',dishes:[dish('success')]},{meals:3,dishes:2},{wasRevenge:true});assert.equal(rev.badge,'复仇成功');const prac=buildCelebration({...session(),state:'completed',dishes:[dish('practice')]},{meals:2,dishes:1},{hour:14});assert.equal(prac.badge,'认真修炼中')})
+test('levelFeedback reports star gain, remaining meals and level-up ceremony',()=>{
+  const before={number:1,tier:'bronze',title:'倔强青铜',star:1,next_at:6,remaining:6}
+  const after={number:1,tier:'bronze',title:'倔强青铜',star:2,next_at:6,remaining:5}
+  const plain=levelFeedback(before,after,1)
+  assert.equal(plain.starGained,1);assert.equal(plain.remaining,5);assert.equal(plain.nextTitle,'秩序白银');assert.equal(plain.levelUp,null)
+  const up=levelFeedback({...before,star:3},{number:2,tier:'silver',title:'秩序白银',star:1,next_at:12,remaining:6},6)
+  assert.equal(up.starGained,0);assert.deepEqual(up.levelUp,{from:'倔强青铜',to:'秩序白银'});assert.equal(up.nextTitle,'荣耀黄金')
+  assert.equal(levelFeedback(before,{number:8,tier:'peak',title:'巅峰',star:37,next_at:null,remaining:0},120).nextTitle,null)
+  assert.equal(levelFeedback(null,after,1),null)
+})

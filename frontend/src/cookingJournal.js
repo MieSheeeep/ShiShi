@@ -1,3 +1,6 @@
+import { defaultMealSlot } from './mealSlots.js'
+import { COOKING_LEVELS } from './cookingLevels.js'
+
 export const effectiveDishes = record => (record?.dishes || []).filter(d => ['success','practice'].includes(d.outcome))
 export const recordPhoto = record => effectiveDishes(record).flatMap(d=>d.photos || [])[0] || ''
 export function previousAttempt(records,key,currentId) {
@@ -187,9 +190,23 @@ export function buildCelebration(record, summary = {}, options = {}) {
 }
 const copy = value => JSON.parse(JSON.stringify(value))
 const blankSummary = () => ({meals:0,dishes:0,level:{number:1,title:'初入厨房',remaining:1,next_at:1},achievements:[],repertoire:[]})
-const initial = () => ({accountId:null,draft:null,drafts:[],records:[],total:0,page:1,summary:blankSummary(),loading:false,saving:false,finalizing:false,uploading:0,error:'',conflict:null,lastCompleted:null,recentRecord:null})
+const initial = () => ({accountId:null,draft:null,drafts:[],records:[],total:0,page:1,summary:blankSummary(),loading:false,saving:false,finalizing:false,uploading:0,error:'',conflict:null,lastCompleted:null,recentRecord:null,feedback:null,mealSlot:defaultMealSlot()})
 const mergePatch = (a,b) => ({...a,...b,...((a?.dishes||b.dishes)?{dishes:[...new Map([...(a?.dishes||[]),...(b.dishes||[])].map(d=>[d.id,{...(a?.dishes||[]).find(x=>x.id===d.id),...d}])).values()]}:{})})
 const applyLocal = (record,patch) => {for(const [key,value] of Object.entries(patch)){if(key==='dishes'){for(const d of value){const target=record.dishes.find(x=>x.id===d.id);if(target)Object.assign(target,copy(d))}}else record[key]=copy(value)}}
+
+// 收尾时的即时反馈：本餐加了几星、是否升段、还差几餐到下一段。
+export function levelFeedback(before, after, meals = 0) {
+  if (!before || !after) return null
+  const levelUp = (after.number || 1) > (before.number || 1)
+  const next = COOKING_LEVELS.find(level => level.minMeals > meals) || null
+  return {
+    meals, title: after.title, star: after.star || 1, tier: after.tier,
+    starGained: levelUp ? 0 : Math.max(0, (after.star || 1) - (before.star || 1)),
+    levelUp: levelUp ? { from: before.title, to: after.title } : null,
+    nextTitle: next?.title || null,
+    remaining: after.remaining || 0
+  }
+}
 
 // Transport injection lets the same queue run in Vue and in independent Node tests.
 export function createJournal(request, reactive = value=>value) {
@@ -215,7 +232,8 @@ export function createJournal(request, reactive = value=>value) {
     async getRecord(id){const e=epoch;try{const record=await request('/cooking-sessions/'+id);if(!alive(e))return null;return dirty.has(id)?cache.get(id):remember(record)}catch(error){return fail(error,e)}},
     async history(key){const e=epoch;let page=1,items=[];do{const result=await request('/cooking-sessions?'+new URLSearchParams({state:'completed',dish_key:key,page,page_size:50}));if(!alive(e))return [];items.push(...result.items);if(items.length>=result.total)break;page++}while(true);return sameDishAttempts(items,key)},
     async loadMonth(month){const e=epoch;let page=1,items=[];do{const result=await request('/cooking-sessions?'+new URLSearchParams({state:'completed',month,page,page_size:50}));if(!alive(e))return [];items.push(...result.items.map(r=>dirty.has(r.id)?cache.get(r.id):remember(r)));if(items.length>=result.total)break;page++}while(true);return items},
-    async start(input){requireEditable();if(starting)return starting;const e=epoch;const signature=JSON.stringify(input);if(!pendingStart||pendingStart.signature!==signature)pendingStart={signature,body:{client_id:crypto.randomUUID(),...input}};const body=pendingStart.body;starting=(async()=>{try{const result=await request('/cooking-sessions','POST',body);if(!alive(e))return null;pendingStart=null;state.draft=remember(result);state.lastCompleted=null;state.error='';if(!state.drafts.some(r=>r.id===result.id))state.drafts.unshift(state.draft);return state.draft}catch(error){return fail(error,e)}finally{if(alive(e))starting=null}})();return starting},
+    async start(input){requireEditable();if(starting)return starting;const e=epoch;const payload={...input};if(payload.meal_slot==null)payload.meal_slot=state.mealSlot;const signature=JSON.stringify(payload);if(!pendingStart||pendingStart.signature!==signature)pendingStart={signature,body:{client_id:crypto.randomUUID(),...payload}};const body=pendingStart.body;starting=(async()=>{try{const result=await request('/cooking-sessions','POST',body);if(!alive(e))return null;pendingStart=null;state.draft=remember(result);state.lastCompleted=null;state.feedback=null;state.error='';if(!state.drafts.some(r=>r.id===result.id))state.drafts.unshift(state.draft);return state.draft}catch(error){return fail(error,e)}finally{if(alive(e))starting=null}})();return starting},
+    setMealSlot(id){state.mealSlot=id},
     async resume(id){requireEditable();const record=await state.getRecord(id);requireEditable();if(record?.state==='in_progress'){state.draft=record;state.lastCompleted=null}return record},
     patch(patch,id=state.draft?.id){
       try{requireEditable()}catch(error){return Promise.reject(error)}
@@ -225,9 +243,8 @@ export function createJournal(request, reactive = value=>value) {
     },
     async retry(id=state.conflict?.id||state.draft?.id){requireEditable();if(state.conflict)throw new Error(state.error);const payload=dirty.get(id);if(payload)return state.patch(payload,id);state.error=''},
     async resolveConflict(choice){requireEditable();const id=state.conflict?.id;if(!id)return;const e=epoch,payload=copy(dirty.get(id)||{});const server=await request('/cooking-sessions/'+id);if(!alive(e))return null;state.conflict=null;state.error='';versions.set(id,server.version);if(choice==='retry')return state.patch(payload,id);dirty.delete(id);const restored=remember(server);if(state.draft?.id===id)state.draft=restored;upsert(restored);return restored},
-    complete(){if(completing)return completing;if(starting)return Promise.reject(new Error('正在切换草稿，请稍候再保存这一餐。'));const e=epoch,id=state.draft?.id;if(!id)return Promise.reject(new Error('没有进行中的一餐'));if(state.uploading)return Promise.reject(new Error('照片仍在上传，请稍候'));state.finalizing=true;completing=(async()=>{try{await queue;if(!alive(e))return null;if(dirty.has(id))throw new Error('还有输入尚未保存，请先重试保存。');if(state.conflict)throw new Error(state.error);state.saving=true;const result=await request(`/cooking-sessions/${id}/complete`,'POST',{version:versions.get(id)});if(!alive(e))return null;remember(result);dirty.delete(id);state.draft=null;state.lastCompleted=result;state.drafts=state.drafts.filter(r=>r.id!==id);state.error='';await refresh();return result}catch(error){return fail(error,e,id)}finally{if(alive(e)){state.saving=false;state.finalizing=false;completing=null}}})();return completing},
-    async withdraw(id,version){requireEditable();const e=epoch;try{await queue;if(!alive(e))return null;const result=await request(`/cooking-sessions/${id}/withdraw`,'POST',{version:versions.get(id)||version});if(!alive(e))return null;cache.delete(id);dirty.delete(id);if(state.draft?.id===id)state.draft=null;await refresh();return result}catch(error){return fail(error,e,id)}},
-    async markDish(dish_key,status){requireEditable();const e=epoch;try{await request('/cooking-dishes','PUT',{dish_key,status});if(alive(e))await refresh()}catch(error){return fail(error,e)}},
+    complete(){if(completing)return completing;if(starting)return Promise.reject(new Error('正在切换草稿，请稍候再保存这一餐。'));const e=epoch,id=state.draft?.id;if(!id)return Promise.reject(new Error('没有进行中的一餐'));if(state.uploading)return Promise.reject(new Error('照片仍在上传，请稍候'));state.finalizing=true;completing=(async()=>{try{await queue;if(!alive(e))return null;if(dirty.has(id))throw new Error('还有输入尚未保存，请先重试保存。');if(state.conflict)throw new Error(state.error);state.saving=true;const before=state.summary?.level;const result=await request(`/cooking-sessions/${id}/complete`,'POST',{version:versions.get(id)});if(!alive(e))return null;remember(result);dirty.delete(id);state.draft=null;state.lastCompleted=result;state.drafts=state.drafts.filter(r=>r.id!==id);state.error='';await refresh();if(alive(e))state.feedback=levelFeedback(before,state.summary?.level,state.summary?.meals);return result}catch(error){return fail(error,e,id)}finally{if(alive(e)){state.saving=false;state.finalizing=false;completing=null}}})();return completing},
+    async withdraw(id,version){requireEditable();const e=epoch;try{await queue;if(!alive(e))return null;const result=await request(`/cooking-sessions/${id}/withdraw`,'POST',{version:versions.get(id)||version});if(!alive(e))return null;cache.delete(id);dirty.delete(id);if(state.draft?.id===id)state.draft=null;state.feedback=null;await refresh();return result}catch(error){return fail(error,e,id)}},
     async uploadPhoto(file){requireEditable();const e=epoch;state.uploading++;try{const form=new FormData();form.append('file',file);const result=await request('/media','POST',form);return alive(e)?result.url:null}catch(error){return fail(error,e)}finally{if(alive(e))state.uploading--}},
   })
   return state

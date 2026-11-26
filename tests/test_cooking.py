@@ -39,6 +39,21 @@ def patch(client, session, **fields):
     return client.patch(f"/api/cooking-sessions/{session['id']}", json={'version': session['version'], **fields})
 
 
+def test_meal_slot_is_saved_and_editable(client):
+    session = create(client, meal_slot='lunch')
+    assert session['meal_slot'] == 'lunch'
+    assert client.get(f"/api/cooking-sessions/{session['id']}").json()['meal_slot'] == 'lunch'
+    updated = patch(client, session, meal_slot='dinner').json()
+    assert updated['meal_slot'] == 'dinner'
+    assert patch(client, updated, meal_slot='teatime').json()['meal_slot'] == 'teatime'
+
+
+def test_meal_slot_defaults_to_blank_and_rejects_unknown(client):
+    assert create(client)['meal_slot'] == ''
+    response = client.post('/api/cooking-sessions', json={'client_id': str(uuid4()), 'manual_name': '家常菜', 'meal_slot': 'brunch'})
+    assert response.status_code == 422
+
+
 def finish(client, session, outcome='success'):
     session = patch(client, session, dishes=[{'id': d['id'], 'outcome': outcome} for d in session['dishes']]).json()
     response = client.post(f"/api/cooking-sessions/{session['id']}/complete", json={'version': session['version']})
@@ -200,26 +215,39 @@ def test_achievements_sources_repertoire_and_retraction(client):
     assert next(a for a in revised['achievements'] if a['id'] == 'first-fire')['session_id'] == again['id']
 
 
-def test_level_thresholds_and_manual_mark_does_not_award(client):
-    expected = {0: (1, 1), 1: (2, 3), 3: (3, 7), 7: (4, 15), 15: (5, None)}
-    first = None
-    for count in range(16):
-        summary = client.get('/api/cooking-summary').json()
-        if count in expected:
-            level, next_at = expected[count]
-            assert summary['level']['number'] == level
-            assert summary['level']['next_at'] == next_at
-            assert summary['level']['remaining'] == (next_at - count if next_at else 0)
-        if count == 15:
-            break
-        session = create(client, **({'dish_key': first['dishes'][0]['dish_key']} if first else {}))
-        session = finish(client, session, 'practice')
-        first = first or session
+def test_level_tiers_and_stars():
+    from backend.cooking_store import build_level
+    assert build_level(0) == {'number': 1, 'tier': 'bronze', 'title': '倔强青铜', 'star': 1,
+                              'next_at': 6, 'remaining': 6}
+    assert build_level(2)['star'] == 2
+    assert build_level(5)['star'] == 3
+    assert (build_level(6)['tier'], build_level(6)['star'], build_level(6)['remaining']) == ('silver', 1, 6)
+    assert (build_level(12)['title'], build_level(12)['star']) == ('荣耀黄金', 1)
+    assert (build_level(18)['title'], build_level(24)['title'], build_level(30)['title']) == ('尊贵铂金', '永恒钻石', '至尊星耀')
+    assert (build_level(36)['title'], build_level(36)['next_at'], build_level(36)['star']) == ('最强王者', 48, 1)
+    assert build_level(41)['star'] == 3
+    assert (build_level(48)['title'], build_level(48)['star'], build_level(48)['next_at']) == ('巅峰', 1, None)
+    assert build_level(50)['star'] == 2
+    assert build_level(480)['star'] == 217
+
+
+def test_manual_mark_does_not_change_status(client):
+    first = finish(client, create(client), 'practice')
     key = first['dishes'][0]['dish_key']
     assert client.put('/api/cooking-dishes', json={'dish_key': key, 'status': 'signature'}).status_code == 200
     summary = client.get('/api/cooking-summary').json()
-    assert summary['repertoire'][0]['status'] == 'signature'
+    assert summary['repertoire'][0]['status'] == 'practice'
     assert not next(a for a in summary['achievements'] if a['id'] == 'signature-dish')['unlocked']
+
+
+def test_percentile_compares_local_accounts(client):
+    finish(client, create(client))
+    other = client.post('/api/auth/register', json={'username': 'second-user', 'password': 'secret123'}).json()
+    client.headers['Authorization'] = 'Bearer ' + other['token']
+    finish(client, create(client))
+    finish(client, create(client))
+    percentile = client.get('/api/cooking-summary').json()['percentile']
+    assert percentile == {'percent': 50, 'accounts': 2, 'ahead': 1}
 
 
 def test_list_filters_and_limits(client):
@@ -336,3 +364,20 @@ def test_session_paths_reject_out_of_range_ids(client, sid):
                     c.post(url + '/complete', json={'version': 1}).status_code,
                     c.post(url + '/withdraw', json={'version': 1}).status_code]
         assert statuses == [422] * 4
+
+
+def status_of(client):
+    return client.get('/api/cooking-summary').json()['repertoire'][0]['status']
+
+
+def test_repertoire_status_follows_records_automatically(client):
+    food = recipe(client)
+    finish(client, from_recipes(client, [food['id']]))
+    assert status_of(client) == 'tried'
+    failed = finish(client, from_recipes(client, [food['id']]), 'practice')
+    assert status_of(client) == 'practice'
+    finish(client, from_recipes(client, [food['id']]))
+    finish(client, from_recipes(client, [food['id']]))
+    assert status_of(client) == 'signature'
+    client.post(f"/api/cooking-sessions/{failed['id']}/withdraw", json={'version': failed['version']})
+    assert status_of(client) == 'signature'
