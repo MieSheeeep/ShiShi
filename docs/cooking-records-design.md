@@ -53,13 +53,14 @@ PATCH dishes 只接受已有 dish id，以及 outcome、note、photos、complete
 ```json
 {
   "meals": 0, "dishes": 0,
-  "level": {"number": 1, "title": "初入厨房", "next_at": 1, "remaining": 1},
+  "level": {"number": 1, "tier": "bronze", "title": "倔强青铜", "star": 1, "next_at": 6, "remaining": 6},
+  "percentile": {"percent": 0, "accounts": 1, "ahead": 0},
   "achievements": [{"id": "first-fire", "title": "第一次开火", "description": "留下一餐实际尝试", "unlocked": false, "session_id": null, "unlocked_at": null}],
   "repertoire": [{"dish_key": "recipe:<64位实例哈希，示例简写>", "name": "番茄炒蛋", "cover": "", "attempts": 1, "successes": 0, "last_note": "少放盐", "last_cooked_on": "2026-11-21", "status": "tried", "sessions": [1]}]
 }
 ```
 
-等级有效餐次阈值0/1/3/7/15，称号初入厨房/第一次开火/渐入佳境/家常小能手/我的拿手菜，最高级 next_at=null、remaining=0。有效菜数按 distinct dish_key，success与practice均计尝试，skipped不计。四印章ID first-fire、try-again、three-dishes、signature-dish，对应第一次/同菜失手后不同会话再次尝试/三种菜/同菜三个会话做成；按实际完成时间和id确定触发记录，不因日期补记编造先后。手动拿手菜标记与自动印章分开。撤回后摘要重新派生。
+段位七档加巅峰：倔强青铜(0)/秩序白银(6)/荣耀黄金(12)/尊贵铂金(18)/永恒钻石(24)/至尊星耀(30)/最强王者(36)/巅峰(48，星数无上限)，每档 3 星、每 2 餐一星，巅峰档 next_at=null、remaining=0 且星数继续累加。百分位只比较本机账号的有效餐次，返回 percent/accounts/ahead，不是全服排名。有效菜数按 distinct dish_key，success与practice均计尝试，skipped不计。四印章ID first-fire、try-again、three-dishes、signature-dish，对应第一次/同菜失手后不同会话再次尝试/三种菜/同菜三个会话做成；按实际完成时间和id确定触发记录，不因日期补记编造先后。手动拿手菜标记与自动印章分开。撤回后摘要重新派生。
 
 ## 前端边界
 

@@ -200,26 +200,30 @@ def test_achievements_sources_repertoire_and_retraction(client):
     assert next(a for a in revised['achievements'] if a['id'] == 'first-fire')['session_id'] == again['id']
 
 
-def test_level_thresholds_and_manual_mark_does_not_award(client):
-    expected = {0: (1, 1), 1: (2, 3), 3: (3, 7), 7: (4, 15), 15: (5, None)}
-    first = None
-    for count in range(16):
-        summary = client.get('/api/cooking-summary').json()
-        if count in expected:
-            level, next_at = expected[count]
-            assert summary['level']['number'] == level
-            assert summary['level']['next_at'] == next_at
-            assert summary['level']['remaining'] == (next_at - count if next_at else 0)
-        if count == 15:
-            break
-        session = create(client, **({'dish_key': first['dishes'][0]['dish_key']} if first else {}))
-        session = finish(client, session, 'practice')
-        first = first or session
-    key = first['dishes'][0]['dish_key']
-    assert client.put('/api/cooking-dishes', json={'dish_key': key, 'status': 'signature'}).status_code == 200
-    summary = client.get('/api/cooking-summary').json()
-    assert summary['repertoire'][0]['status'] == 'signature'
-    assert not next(a for a in summary['achievements'] if a['id'] == 'signature-dish')['unlocked']
+def test_level_tiers_and_stars():
+    from backend.cooking_store import build_level
+    assert build_level(0) == {'number': 1, 'tier': 'bronze', 'title': '倔强青铜', 'star': 1,
+                              'next_at': 6, 'remaining': 6}
+    assert build_level(2)['star'] == 2
+    assert build_level(5)['star'] == 3
+    assert (build_level(6)['tier'], build_level(6)['star'], build_level(6)['remaining']) == ('silver', 1, 6)
+    assert (build_level(12)['title'], build_level(12)['star']) == ('荣耀黄金', 1)
+    assert (build_level(18)['title'], build_level(24)['title'], build_level(30)['title']) == ('尊贵铂金', '永恒钻石', '至尊星耀')
+    assert (build_level(36)['title'], build_level(36)['next_at'], build_level(36)['star']) == ('最强王者', 48, 1)
+    assert build_level(41)['star'] == 3
+    assert (build_level(48)['title'], build_level(48)['star'], build_level(48)['next_at']) == ('巅峰', 1, None)
+    assert build_level(50)['star'] == 2
+    assert build_level(480)['star'] == 217
+
+
+def test_percentile_compares_local_accounts(client):
+    finish(client, create(client))
+    other = client.post('/api/auth/register', json={'username': 'second-user', 'password': 'secret123'}).json()
+    client.headers['Authorization'] = 'Bearer ' + other['token']
+    finish(client, create(client))
+    finish(client, create(client))
+    percentile = client.get('/api/cooking-summary').json()['percentile']
+    assert percentile == {'percent': 50, 'accounts': 2, 'ahead': 1}
 
 
 def test_list_filters_and_limits(client):

@@ -104,7 +104,7 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
     <p class="sidebar-label">我的厨房</p>
     <nav aria-label="厨房导航"><button v-for="[id,label,icon,shortLabel] in nav" :key="id" :class="{active:page===id}" :aria-current="page===id?'page':undefined" @click="navigate(id)" :aria-label="label"><component :is="icon" :size="19"/><span class="nav-label">{{label}}</span><span class="mobile-nav-label" aria-hidden="true">{{shortLabel}}</span></button></nav>
     <div class="sidebar-note"><span>一餐一饭，好好生活。</span><p>把散落的好味道，<br>收进自己的小厨房。</p><Leaf :size="40" stroke-width="1"/></div>
-    <div class="profile"><button class="avatar" @click="accountOpen=true" aria-label="账号管理" title="账号管理"><img v-if="avatarUrl" :src="avatarUrl" alt="我的头像"/><template v-else>{{user.username.slice(0,1)}}</template></button><div class="profile-meta"><strong>{{nickname||user.username}}</strong></div></div>
+    <div class="profile"><button class="avatar" @click="accountOpen=true" aria-label="账号管理" title="账号管理"><img v-if="avatarUrl" :src="avatarUrl" alt="我的头像"/><template v-else>{{user.username.slice(0,1)}}</template></button><div class="profile-meta"><strong>{{nickname||user.username}}</strong><small class="profile-level">{{journal.summary.level.title}} · {{journal.summary.level.star}} 星</small></div></div>
   </aside>
   <main>
     <header class="topbar"><span>我的厨房 <span class="slash">/</span> {{pageLabel}}</span><span class="top-right"><span class="top-tip"><Leaf :size="14"/> 每一份收藏，都是下一餐的灵感</span><button class="top-account top-account-btn" @click="accountOpen=true" title="账号管理"><i></i>{{user.username}}</button></span></header>
@@ -136,7 +136,7 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
   <RecipeEditor v-if="editor" :key="importMeta?importMeta.index:'editor'" :recipe="editor" :catalog="catalog" :busy="busy" :error="error" :search-meta="importMeta" @cancel="editor=null;importMeta=null" @save="save" @next="nextImport" @catalog-change="load" @manage-tags="tagManager=true"/>
   <RecipeDetail v-if="detail" :key="detail.id" :recipe="detail" :done="done" :selected="selected.includes(detail.id)" @close="detail=null" @edit="edit" @remove="remove" @toggle="toggle" @cook="beginCooking([$event])"/>
   <TagManager v-if="tagManager" :catalog="catalog" @close="tagManager=false" @changed="load"/>
-  <AccountPanel v-if="accountOpen" :username="user.username" :nickname="nickname" :avatar="avatarUrl" @close="accountOpen=false" @logout="signOut" @avatar-changed="setAvatar" @nickname-changed="setNickname"/>
+  <AccountPanel v-if="accountOpen" :username="user.username" :nickname="nickname" :avatar="avatarUrl" :level="journal.summary.level" :meals="journal.summary.meals" :percentile="journal.summary.percentile" @close="accountOpen=false" @logout="signOut" @avatar-changed="setAvatar" @nickname-changed="setNickname"/>
 
 </div>
 </template>
@@ -177,6 +177,34 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
 .account-head-text{min-width:0}
 .account-head-text h2{margin:2px 0 4px}
 .account-head-text .muted{margin:0;font-size:11px}
+.level-head{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.level-head .secondary{flex:none;margin:0}
+.level-label{display:block;font-size:10px;letter-spacing:.12em;color:#98a08e}
+.level-title{display:block;margin-top:3px;font-size:17px;font-family:'Noto Serif SC',Georgia,serif}
+.level-hint{margin:4px 0 0;font-size:11px;color:#8b937f}
+.level-bar{margin-top:12px;height:6px;border-radius:999px;background:#eceee5;overflow:hidden}
+.level-bar span{display:block;height:100%;border-radius:999px;background:#8fa676;transition:width .3s ease}
+.level-ladder{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px}
+.level-ladder li{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid #eceee5;border-radius:9px}
+.level-ladder li.current{border-color:#9aa88a;background:#f7f8f2}
+.level-main{display:flex;align-items:center;gap:12px;min-width:0}
+.level-text{min-width:0}
+.level-badge{position:relative;flex:none;width:52px;height:52px;border-radius:14px;display:grid;place-items:center;color:#fff;font-size:24px;font-family:'Noto Serif SC',Georgia,serif;letter-spacing:0;box-shadow:inset 0 -6px 12px rgba(0,0,0,.12)}
+.level-badge em{position:absolute;right:-6px;bottom:-7px;font-style:normal;font-size:9px;letter-spacing:1px;color:#b07c26;background:#fff;border:1px solid #eadfc8;border-radius:999px;padding:1px 5px}
+.level-badge.is-bronze{background:linear-gradient(135deg,#a97655,#6d4632)}
+.level-badge.is-silver{background:linear-gradient(135deg,#c2cbd2,#87939d)}
+.level-badge.is-gold{background:linear-gradient(135deg,#e6bb63,#b17f28)}
+.level-badge.is-platinum{background:linear-gradient(135deg,#7ecdc6,#3d8d88)}
+.level-badge.is-diamond{background:linear-gradient(135deg,#93bdea,#4a7fc1)}
+.level-badge.is-star{background:linear-gradient(135deg,#a291e6,#6952bd)}
+.level-badge.is-king{background:linear-gradient(135deg,#eab254,#a4551d)}
+.level-badge.is-peak{background:linear-gradient(135deg,#f3d67a,#b1371f 60%,#5d1d12);box-shadow:inset 0 -6px 12px rgba(0,0,0,.18),0 0 0 1px rgba(255,236,190,.35)}
+.level-rank{margin:5px 0 0;font-size:11px;color:#6f7a63}
+.level-ladder .level-badge{width:28px;height:28px;border-radius:8px;font-size:14px;box-shadow:none}
+.level-ladder .level-badge em{display:none}
+.level-ladder strong{font-size:12.5px}
+.level-ladder p{margin:2px 0 0;font-size:11px;line-height:1.6;color:#8b937f}
+.level-rule{margin:12px 0 0;font-size:11px;color:#8b937f}
 .account-tabs{display:flex;gap:6px;margin:18px 0 4px;padding:4px;border:1px solid #eceee5;border-radius:10px;background:#f7f8f2}
 .account-tabs button{flex:1;padding:9px 12px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:13px;font-weight:600;color:#7c8571;cursor:pointer}
 .account-tabs button.chosen{background:#fff;color:#3f5334;box-shadow:0 1px 3px rgba(76,83,58,.12)}
@@ -199,6 +227,7 @@ function exportList(){const text=buyList.value.map(i=>`${i.checked?'☑':'☐'} 
 .profile .avatar img{width:100%;height:100%;object-fit:cover;display:block}
 .profile-meta{display:grid;gap:4px;min-width:0}
 .profile-meta strong{font-size:12.5px;font-weight:600;color:var(--ink,#191816);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.profile-meta .profile-level{margin:0;font-size:10.5px;color:#897755}
 .avatar-editor{display:grid;grid-template-columns:62px minmax(0,1fr);gap:16px;align-items:start;margin-top:12px}
 .account-panel .avatar-preview{width:62px;height:62px;font-size:24px;overflow:hidden;background:#ece6d8;color:#897755;font-family:serif;border-radius:50%;display:grid;place-items:center}
 .account-panel .avatar-preview img{width:100%;height:100%;object-fit:cover;display:block}

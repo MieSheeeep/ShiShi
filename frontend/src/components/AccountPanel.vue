@@ -1,11 +1,12 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { Check, KeyRound, LogOut, ShieldAlert, UserRound, X } from 'lucide-vue-next'
 import { api, clearToken } from '../recipeEditing'
 import { AI_PROVIDERS } from '../aiProviders'
+import { COOKING_LEVELS, STARS_PER_TIER, levelProgress } from '../cookingLevels'
 import XhsLogin from './XhsLogin.vue'
 
-const props = defineProps({ username: String, nickname: String, avatar: String })
+const props = defineProps({ username: String, nickname: String, avatar: String, level: Object, meals: Number, percentile: Object })
 const emit = defineEmits(['close', 'logout', 'avatar-changed', 'nickname-changed'])
 
 const base = ref(''), model = ref(''), key = ref(''), hint = ref(''), picked = ref('')
@@ -17,6 +18,11 @@ const passwordBusy = ref(false), passwordError = ref(''), passwordOk = ref('')
 const deletePassword = ref(''), deleteBusy = ref(false), deleteError = ref(''), deleteConfirm = ref(false)
 
 const tab = ref('account')
+const levelOpen = ref(false)
+const progress = computed(() => levelProgress(props.meals || 0))
+const tier = computed(() => COOKING_LEVELS.find(item => item.id === (props.level?.tier || progress.value.current.id)) || COOKING_LEVELS[0])
+const stars = computed(() => props.level?.star || progress.value.star)
+const badgeStars = computed(() => stars.value > STARS_PER_TIER ? '★' + stars.value : '★'.repeat(stars.value))
 
 const nickname = ref(props.nickname || '')
 const nicknameBusy = ref(false), nicknameError = ref(''), nicknameOk = ref('')
@@ -155,6 +161,33 @@ async function deleteAccount() {
         </div>
         <input ref="avatarInput" class="avatar-file" type="file" accept="image/jpeg,image/png,image/webp" @change="uploadAvatar" />
         <div v-if="avatarError" class="alert" role="alert">{{ avatarError }}</div>
+      </section>
+
+      <section v-if="tab === 'account'" class="account-block level-block">
+        <div class="level-head">
+          <div class="level-main">
+            <span :class="['level-badge', 'is-' + tier.id]">{{ tier.char }}<em>{{ badgeStars }}</em></span>
+            <div class="level-text">
+              <span class="level-label">我的段位</span>
+              <strong class="level-title">{{ props.level?.title || tier.title }} · {{ stars }} 星</strong>
+              <p class="level-hint">{{ props.meals || 0 }} 餐已记录 · {{ progress.text }}</p>
+              <p v-if="(props.percentile?.accounts || 0) > 1" class="level-rank">本机超过 {{ props.percentile.percent }}% 的账号</p>
+              <p v-else class="level-rank">本机暂无其他账号可比较</p>
+            </div>
+          </div>
+          <button class="secondary" @click="levelOpen = !levelOpen">{{ levelOpen ? '收起总览' : '段位总览' }}</button>
+        </div>
+        <div class="level-bar" aria-hidden="true"><span :style="{ width: progress.percent + '%' }"></span></div>
+        <ol v-if="levelOpen" class="level-ladder">
+          <li v-for="item in COOKING_LEVELS" :key="item.id" :class="{ current: item.id === tier.id }">
+            <span :class="['level-badge', 'is-' + item.id]">{{ item.char }}</span>
+            <div>
+              <strong>{{ item.title }}</strong>
+              <p>{{ item.minMeals ? '累计 ' + item.minMeals + ' 餐 · ' : '起始段位 · ' }}{{ item.note }}</p>
+            </div>
+          </li>
+        </ol>
+        <p class="level-rule">每档 3 星、每 2 餐一星；进入巅峰后星数不封顶。升级只看有效餐次：完成一餐计一次，补记的一餐也算；撤回后按现有记录重新计算。</p>
       </section>
 
       <section v-if="tab === 'settings'" class="account-block">

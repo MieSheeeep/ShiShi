@@ -145,7 +145,7 @@ function dismissDone() {
       <h1>厨房闯关<span class="title-dot">。</span></h1>
       <div class="kj-level-chip" aria-label="当前阶段">
         <Trophy :size="14" />
-        <span>Lv.{{ journal.summary.level.number }} {{ journal.summary.level.title }}</span>
+        <span>{{ journal.summary.level.title }} {{ journal.summary.level.star }} 星</span>
         <small>{{ chapterMap.totalCleared }}/{{ chapterMap.totalStages }}</small>
       </div>
     </header>

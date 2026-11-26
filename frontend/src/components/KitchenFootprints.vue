@@ -166,7 +166,7 @@ function onDetailClosed() {
     <section class="kj-metric-bar" aria-label="下厨统计">
       <div><strong>{{ journal.summary.meals }}</strong><span>累计餐次</span></div>
       <div><strong>{{ journal.summary.dishes }}</strong><span>尝试菜品</span></div>
-      <div><strong>{{ journal.summary.level.title }}</strong><span>当前阶段</span></div>
+      <div><strong>{{ journal.summary.level.title }} · {{ journal.summary.level.star }} 星</strong><span>当前段位</span></div>
     </section>
 
     <div class="kj-seg-tabs" role="tablist">
