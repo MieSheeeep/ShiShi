@@ -187,7 +187,7 @@ export function buildCelebration(record, summary = {}, options = {}) {
 }
 const copy = value => JSON.parse(JSON.stringify(value))
 const blankSummary = () => ({meals:0,dishes:0,level:{number:1,title:'初入厨房',remaining:1,next_at:1},achievements:[],repertoire:[]})
-const initial = () => ({accountId:null,draft:null,drafts:[],records:[],total:0,page:1,summary:blankSummary(),loading:false,saving:false,finalizing:false,uploading:0,error:'',conflict:null,lastCompleted:null,recentRecord:null})
+const initial = () => ({accountId:null,draft:null,drafts:[],records:[],total:0,page:1,summary:blankSummary(),quest:null,loading:false,saving:false,finalizing:false,uploading:0,error:'',conflict:null,lastCompleted:null,recentRecord:null})
 const mergePatch = (a,b) => ({...a,...b,...((a?.dishes||b.dishes)?{dishes:[...new Map([...(a?.dishes||[]),...(b.dishes||[])].map(d=>[d.id,{...(a?.dishes||[]).find(x=>x.id===d.id),...d}])).values()]}:{})})
 const applyLocal = (record,patch) => {for(const [key,value] of Object.entries(patch)){if(key==='dishes'){for(const d of value){const target=record.dishes.find(x=>x.id===d.id);if(target)Object.assign(target,copy(d))}}else record[key]=copy(value)}}
 
@@ -205,7 +205,7 @@ export function createJournal(request, reactive = value=>value) {
   async function refresh(){
     const e=epoch;if(state.accountId==null)return
     state.loading=true
-    try {const [summary,drafts,recent]=await Promise.all([request('/cooking-summary'),request('/cooking-sessions?state=in_progress&page_size=50'),request('/cooking-sessions?state=completed&page_size=1')]);if(!alive(e))return;state.summary=summary;state.recentRecord=recent.items[0]||null;state.drafts=drafts.items.map(r=>dirty.has(r.id)?cache.get(r.id):remember(r));await state.loadRecords(filter)}catch(error){if(alive(e))state.error=error.message}finally{if(alive(e))state.loading=false}
+    try {const [summary,drafts,recent,quest]=await Promise.all([request('/cooking-summary'),request('/cooking-sessions?state=in_progress&page_size=50'),request('/cooking-sessions?state=completed&page_size=1'),request('/kitchen-quest').catch(()=>null)]);if(!alive(e))return;state.summary=summary;state.quest=quest;state.recentRecord=recent.items[0]||null;state.drafts=drafts.items.map(r=>dirty.has(r.id)?cache.get(r.id):remember(r));await state.loadRecords(filter)}catch(error){if(alive(e))state.error=error.message}finally{if(alive(e))state.loading=false}
   }
   Object.assign(state,{
     reset(){epoch++;listEpoch++;Object.assign(state,initial());cache.clear();versions.clear();dirty.clear();queue=Promise.resolve();completing=null;starting=null;pendingStart=null;filter={page:1,state:'completed'}},
