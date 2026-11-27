@@ -33,6 +33,7 @@ class Create(Dated):
     recipe_ids: list[int] = Field(default_factory=list, max_length=20)
     manual_name: str | None = Field(default=None, min_length=1, max_length=80)
     dish_key: str | None = Field(default=None, min_length=1, max_length=100)
+    quest_stage: str | None = Field(default=None, min_length=1, max_length=20)
 
     @field_validator('client_id')
     @classmethod
@@ -48,8 +49,8 @@ class Create(Dated):
 
     @model_validator(mode='after')
     def selection(self):
-        if bool(self.recipe_ids) == bool(self.manual_name):
-            raise ValueError('请选择食谱或填写补记菜名')
+        if sum(bool(value) for value in (self.recipe_ids, self.manual_name, self.quest_stage)) != 1:
+            raise ValueError('请选择食谱、内置关卡或填写补记菜名')
         if len(set(self.recipe_ids)) != len(self.recipe_ids) or any(not 1 <= i <= 2**63 - 1 for i in self.recipe_ids):
             raise ValueError('食谱编号重复或无效')
         if self.dish_key and not self.manual_name:

@@ -1,7 +1,8 @@
 <script setup>
 import { computed, ref, watch, onBeforeUnmount } from 'vue'
-import { Camera, Check, Flame, ArrowRight, Trophy, RotateCcw, Sparkles, Plus, Shuffle, ChevronLeft, ChevronRight, List, Layers, UtensilsCrossed } from 'lucide-vue-next'
+import { Camera, Check, Flame, ArrowRight, Trophy, RotateCcw, Sparkles, Plus, Shuffle, ChevronLeft, ChevronRight, List, Layers, UtensilsCrossed, Lock, Star, BookOpen, X, Clock, Award, ChevronDown } from 'lucide-vue-next'
 import { effectiveDishes, recordPhoto, previousAttempt, buildChapterMap, pickBlindBox, buildCelebration } from '../cookingJournal.js'
+import { buildQuestView, allStages, stageById, stageForDish, starGoalsForDish, noteLength, starPips, rankTiers, rankLine, questAwards, hasAwards, cheerFor, formatElapsed, blindBoxOptions, RANK_RULE, QUEST_STAR_RULES, RANK_TIERS } from '../kitchenQuest.js'
 import CookingRecordDetail from './CookingRecordDetail.vue'
 import '../kitchen-journal.css'
 
@@ -21,7 +22,14 @@ const showIngredients = ref(false)
 const detail = ref(null)
 const localError = ref('')
 const blindBox = ref(null)
+const blindIndex = ref(0)
+const briefing = ref(null)
+const showRules = ref(false)
 const wasRevenge = ref(false)
+const questBefore = ref(null)
+const awardResult = ref(null)
+const elapsed = ref(0)
+let timer = null
 
 const draft = computed(() => props.journal.draft)
 const done = computed(() => props.journal.lastCompleted)
@@ -30,9 +38,31 @@ let historyGeneration = 0
 
 const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' })
 const chapterMap = computed(() => buildChapterMap(props.journal.summary, props.recipes))
+const questView = computed(() => buildQuestView(props.journal.quest, props.journal.summary, props.recipes))
+const questChapters = computed(() => questView.value.chapters)
+const questStages = computed(() => allStages(questView.value))
+const rank = computed(() => questView.value.rank)
+const rankProgress = computed(() => rank.value?.progress || 0)
+const totals = computed(() => questView.value.totals)
+const secrets = computed(() => questView.value.secrets)
+const easterEggs = computed(() => questView.value.easterEggs)
+const blindOptions = computed(() => blindBoxOptions(props.journal.quest))
+const activeBlind = computed(() => blindOptions.value.length
+  ? blindOptions.value[blindIndex.value % blindOptions.value.length]
+  : blindBox.value)
+const activeBlindStage = computed(() => {
+  const option = activeBlind.value
+  if (!option) return null
+  return option.stage_id ? stageById(questView.value, option.stage_id) : option
+})
 const activeDish = computed(() => draft.value?.dishes?.[activeDishIdx.value] || draft.value?.dishes?.[0] || null)
 const activeSteps = computed(() => activeDish.value?.snapshot?.steps || [])
 const currentStep = computed(() => activeSteps.value[activeStepIdx.value] || null)
+const activeQuestStage = computed(() => stageForDish(questView.value, activeDish.value))
+const activeGoals = computed(() => starGoalsForDish(activeDish.value))
+const cheer = computed(() => cheerFor(activeStepIdx.value, activeSteps.value.length, activeDish.value?.snapshot?.name || ''))
+const awards = computed(() => awardResult.value)
+const hasFreshAwards = computed(() => hasAwards(awardResult.value))
 
 const celebration = computed(() => done.value ? buildCelebration(done.value, props.journal.summary, { wasRevenge: wasRevenge.value }) : null)
 
@@ -44,6 +74,8 @@ watch(() => [props.journal.accountId, draft.value?.id], async () => {
   activeDishIdx.value = 0
   activeStepIdx.value = 0
   showIngredients.value = false
+  blindIndex.value = 0
+  briefing.value = null
   if (!session) return
   await Promise.all(session.dishes.map(async dish => {
     try {
@@ -56,7 +88,18 @@ watch(() => [props.journal.accountId, draft.value?.id], async () => {
 }, { immediate: true })
 
 watch(activeDishIdx, () => { activeStepIdx.value = 0 })
-onBeforeUnmount(() => { historyGeneration++ })
+watch(() => draft.value?.id, id => {
+  if (id) {
+    elapsed.value = 0
+    clearInterval(timer)
+    timer = setInterval(() => { elapsed.value++ }, 1000)
+  } else {
+    clearInterval(timer)
+    timer = null
+    elapsed.value = 0
+  }
+}, { immediate: true })
+onBeforeUnmount(() => { historyGeneration++; clearInterval(timer) })
 
 const attempt = async action => {
   localError.value = ''
@@ -102,16 +145,32 @@ async function upload(event, dish) {
 
 async function complete() {
   wasRevenge.value = Object.values(priorNotes.value).some(p => p?.dish?.outcome === 'practice')
+  questBefore.value = props.journal.quest ? JSON.parse(JSON.stringify(props.journal.quest)) : null
   await attempt(async () => {
     const record = await props.journal.complete()
     if (record) {
+      awardResult.value = questAwards(questBefore.value, props.journal.quest)
       finishing.value = false
       emit('recorded', record)
     }
   })
 }
 
-async function startStage(stage) {
+function openBriefing(stage) {
+  if (!stage || stage.unlocked === false) return
+  briefing.value = stage
+}
+
+async function startBriefing() {
+  const stage = briefing.value
+  if (!stage) return
+  briefing.value = null
+  awardResult.value = null
+  questBefore.value = null
+  if (questView.value.server && stage.id?.startsWith('s-')) {
+    await attempt(() => props.journal.start({ quest_stage: stage.id }))
+    return
+  }
   if (stage.recipeId) {
     emit('start-recipe', stage.recipeId)
     return
@@ -130,12 +189,21 @@ async function viewStageRecord(stage) {
 }
 
 function rollBlindBox() {
+  if (blindOptions.value.length) {
+    blindIndex.value = (blindIndex.value + 1) % blindOptions.value.length
+    return
+  }
   blindBox.value = pickBlindBox(props.recipes, props.journal.summary, Math.random())
 }
 
 function dismissDone() {
   props.journal.lastCompleted = null
+  awardResult.value = null
+  questBefore.value = null
 }
+
+const stageGoals = dish => starGoalsForDish(dish)
+
 </script>
 
 <template>
@@ -143,12 +211,38 @@ function dismissDone() {
     <!-- Compact 1-line Header when idle -->
     <header v-if="!draft" class="kj-compact-head">
       <h1>厨房闯关<span class="title-dot">。</span></h1>
-      <div class="kj-level-chip" aria-label="当前阶段">
-        <Trophy :size="14" />
-        <span>Lv.{{ journal.summary.level.number }} {{ journal.summary.level.title }}</span>
-        <small>{{ chapterMap.totalCleared }}/{{ chapterMap.totalStages }}</small>
+      <div class="kj-head-badges">
+        <button v-if="rank" type="button" class="kj-rank-chip" @click="showRules = true">
+          <Award :size="14" /> {{ rank.title }} {{ rank.stars }}★
+        </button>
+        <div class="kj-level-chip" aria-label="当前阶段">
+          <Trophy :size="14" />
+          <span>Lv.{{ journal.summary.level.number }} {{ journal.summary.level.title }}</span>
+          <small>{{ totals.cleared }}/{{ totals.stages }}</small>
+        </div>
       </div>
     </header>
+
+    <section v-if="!draft && rank" class="kj-card kj-rank-card" aria-label="段位赛进度">
+      <div class="kj-rank-main">
+        <div class="kj-rank-emblem">
+          <Award :size="20" />
+          <strong>{{ rank.title }}</strong>
+          <span>{{ rank.stars }}★</span>
+        </div>
+        <div class="kj-rank-copy">
+          <div class="kj-spread">
+            <b>{{ rank.points }} 分</b>
+            <small class="kj-muted">{{ rankLine(rank) }}</small>
+          </div>
+          <div class="kj-rank-track" role="progressbar" :aria-valuenow="rankProgress" aria-valuemin="0" aria-valuemax="100">
+            <i :style="{ width: rankProgress + '%' }"></i>
+          </div>
+          <small class="kj-muted">{{ rank.season }} · 只升不降 · 闯关星 {{ totals.stars }}/{{ totals.max_stars }} · 再集 {{ rank.courage }}/3 餐 +1 分</small>
+        </div>
+      </div>
+      <button type="button" class="kj-link" @click="showRules = true">段位规则 <ChevronDown :size="14" /></button>
+    </section>
 
     <p v-if="journal.finalizing" class="kj-status-banner" role="status">正在保存这一餐，请稍候…</p>
     <div v-if="localError || journal.error" class="kj-error" role="alert">
@@ -178,6 +272,13 @@ function dismissDone() {
         </span>
       </div>
       <p v-if="done.note" class="kj-quote">{{ done.note }}</p>
+      <div v-if="hasFreshAwards" class="kj-awards" aria-label="本关奖励">
+        <p v-if="awards.stars" class="kj-award-stars"><Star :size="15" /> 本关 +{{ awards.stars }} 星</p>
+        <p v-if="awards.rankUp"><Award :size="15" /> 段位晋升：{{ awards.rankUp }}</p>
+        <p v-for="secret in awards.secrets" :key="secret.id"><BookOpen :size="15" /> 解锁秘籍：{{ secret.title }}</p>
+        <p v-for="egg in awards.eggs" :key="egg.id"><Sparkles :size="15" /> 隐藏彩蛋：{{ egg.title }}</p>
+        <p v-for="chapter in awards.chapters" :key="chapter.id"><Trophy :size="15" /> 获得称号「{{ chapter.badge }}」</p>
+      </div>
       <div class="kj-actions">
         <button class="kj-primary" @click="emit('records')">去看下厨记录 <ArrowRight :size="15" /></button>
         <button @click="dismissDone">继续闯关</button>
@@ -199,39 +300,43 @@ function dismissDone() {
       <section class="kj-card kj-blindbox">
         <div class="kj-spread">
           <div>
-            <span class="kj-tag">今日盲盒</span>
-            <h2 v-if="!blindBox">不知道做什么？摇一道来闯关</h2>
-            <h2 v-else>{{ blindBox.emoji }} {{ blindBox.name }}</h2>
+            <span class="kj-tag">今日盲盒{{ journal.quest?.blind_box?.date ? ' · ' + journal.quest.blind_box.date : '' }}</span>
+            <h2 v-if="!activeBlind">不知道做什么？摇一道来闯关</h2>
+            <h2 v-else>{{ activeBlind.emoji }} {{ activeBlind.name }}</h2>
           </div>
           <button class="kj-soft-btn" @click="rollBlindBox">
-            <Shuffle :size="15" /> {{ blindBox ? '换一个' : '摇一下' }}
+            <Shuffle :size="15" /> {{ activeBlind ? '换一个' : '摇一下' }}
           </button>
         </div>
-        <template v-if="blindBox">
-          <p class="kj-blind-twist"><Sparkles :size="14" /> 附加小任务：{{ blindBox.twist }}</p>
-          <p class="kj-muted">秘籍：{{ blindBox.tip }}</p>
+        <template v-if="activeBlind">
+          <p class="kj-blind-twist"><Sparkles :size="14" /> 附加小任务：{{ activeBlind.twist }}</p>
+          <p class="kj-muted">主厨提示：{{ activeBlind.tip }}</p>
           <div class="kj-actions">
-            <button class="kj-primary" @click="startStage(blindBox)"><Flame :size="15" /> 接受挑战，现在开火</button>
+            <span v-if="activeBlind.completed" class="kj-tag">今天已完成 · 可再练</span>
+            <button class="kj-primary" :disabled="!activeBlindStage || activeBlindStage.unlocked === false" @click="openBriefing(activeBlindStage)">
+              <Flame :size="15" /> {{ activeBlind.completed ? '再练一次' : '接受挑战，现在开火' }}
+            </button>
           </div>
         </template>
       </section>
 
       <!-- Chapters -->
       <div class="kj-chapters">
-        <section v-for="chapter in chapterMap.chapters" :key="chapter.id" class="kj-chapter">
+        <section v-for="chapter in questChapters" :key="chapter.id" :class="['kj-chapter', { 'is-locked': chapter.unlocked === false }]">
           <div class="kj-chapter-head">
             <div>
-              <span class="kj-chapter-num">第 {{ chapter.number }} 关</span>
+              <span class="kj-chapter-num">第 {{ chapter.number }} 章</span>
               <h2>{{ chapter.title }}</h2>
               <span class="kj-muted">{{ chapter.subtitle }}</span>
             </div>
             <span :class="['kj-chapter-progress', { 'is-done': chapter.completed }]">
-              {{ chapter.completed ? `已获「${chapter.badge}」` : `${chapter.clearedCount} / ${chapter.stages.length}` }}
+              {{ chapter.completed ? `已获「${chapter.badge}」· ${chapter.stars}/${chapter.max_stars}★` : `${chapter.cleared_count} / ${chapter.stages.length} · ${chapter.stars}/${chapter.max_stars}★` }}
             </span>
           </div>
+          <p v-if="chapter.unlocked === false" class="kj-lock-note"><Lock :size="14" /> {{ chapter.unlock_hint }}</p>
 
           <div class="kj-stage-grid">
-            <article v-for="stage in chapter.stages" :key="stage.id" :class="['kj-card', 'kj-stage-card', 'is-' + stage.state]">
+            <article v-for="stage in chapter.stages" :key="stage.id" :class="['kj-card', 'kj-stage-card', 'is-' + stage.state, { 'is-locked': stage.unlocked === false }]">
               <div class="kj-stage-top">
                 <img v-if="stage.cover" class="kj-stage-thumb" :src="stage.cover" :alt="stage.name" loading="lazy" />
                 <span v-else class="kj-stage-emoji">{{ stage.emoji }}</span>
@@ -242,20 +347,55 @@ function dismissDone() {
                     <span v-else-if="stage.state === 'revenge'" class="kj-revenge-tag">待复仇</span>
                   </div>
                   <small class="kj-muted">{{ stage.minutes }} 分钟 · {{ '★'.repeat(stage.difficulty) }}</small>
+                  <span class="kj-stage-stars" :aria-label="`${stage.stars} 颗星`">
+                    <Star v-for="(on, i) in starPips(stage.stars)" :key="i" :size="14" :class="{ 'is-on': on }" />
+                  </span>
                 </div>
               </div>
               <p class="kj-stage-tip">{{ stage.tip }}</p>
+              <p v-if="stage.secret_unlocked" class="kj-stage-secret"><BookOpen :size="14" /> 秘籍已解锁：{{ stage.secret }}</p>
               <div class="kj-stage-foot">
-                <button v-if="stage.state === 'cleared' && stage.lastSessionId" class="kj-link" @click="viewStageRecord(stage)">回看记录</button>
-                <span v-else class="kj-muted">{{ stage.state === 'revenge' ? '再战一次翻盘' : '内置菜谱直开' }}</span>
-                <button :class="stage.state === 'cleared' ? 'kj-soft-btn' : 'kj-primary'" :disabled="journal.finalizing" @click="startStage(stage)">
-                  <Flame :size="14" /> {{ stage.state === 'cleared' ? '再练一次' : stage.state === 'revenge' ? '去复仇' : '开始闯关' }}
+                <button v-if="stage.state === 'cleared' && stage.last_session_id" class="kj-link" @click="viewStageRecord(stage)">回看记录</button>
+                <span v-else class="kj-muted">{{ stage.unlocked === false ? '上一章 3 星后解锁' : stage.state === 'revenge' ? '再战一次翻盘' : '内置菜谱直开' }}</span>
+                <button :class="stage.state === 'cleared' ? 'kj-soft-btn' : 'kj-primary'" :disabled="journal.finalizing || stage.unlocked === false" @click="openBriefing(stage)">
+                  <Lock v-if="stage.unlocked === false" :size="14" />
+                  <Flame v-else :size="14" />
+                  {{ stage.unlocked === false ? '未解锁' : stage.state === 'cleared' ? '再练一次' : stage.state === 'revenge' ? '去复仇' : '开始闯关' }}
                 </button>
               </div>
             </article>
           </div>
         </section>
       </div>
+
+      <!-- Collectibles: secret recipes and hidden eggs -->
+      <section class="kj-collect">
+        <article class="kj-card">
+          <div class="kj-spread">
+            <span class="kj-tag"><BookOpen :size="14" /> 秘籍图鉴</span>
+            <small class="kj-muted">{{ totals.secrets }}/{{ totals.secrets_total }}</small>
+          </div>
+          <div class="kj-secret-grid">
+            <div v-for="secret in secrets" :key="secret.id" :class="['kj-secret', { 'is-locked': !secret.unlocked }]">
+              <b>{{ secret.unlocked ? secret.title : '待解锁秘籍' }}</b>
+              <p v-if="secret.unlocked">{{ secret.body }}</p>
+              <small v-else><Lock :size="12" /> {{ secret.hint }}</small>
+            </div>
+          </div>
+        </article>
+        <article class="kj-card">
+          <div class="kj-spread">
+            <span class="kj-tag"><Sparkles :size="14" /> 彩蛋</span>
+            <small class="kj-muted">{{ easterEggs.filter(egg => egg.unlocked).length }}/{{ easterEggs.length }}</small>
+          </div>
+          <div class="kj-egg-grid">
+            <div v-for="egg in easterEggs" :key="egg.id" :class="['kj-egg', { 'is-unlocked': egg.unlocked }]">
+              <b>{{ egg.unlocked ? egg.title : '???' }}</b>
+              <small>{{ egg.unlocked ? egg.description : egg.hint }}</small>
+            </div>
+          </div>
+        </article>
+      </section>
 
       <!-- Compact Manual Quick-Log -->
       <form class="kj-card kj-quick-manual" @submit.prevent="attempt(() => journal.start({ manual_name: manual.trim() }))">
@@ -269,7 +409,7 @@ function dismissDone() {
       <header class="kj-cook-topbar">
         <div class="kj-cook-title">
           <strong>{{ activeDish?.snapshot?.name || '正在做菜' }}</strong>
-          <small aria-live="polite">{{ journal.uploading ? '照片上传中…' : journal.saving ? '保存中…' : '自动保存' }}</small>
+          <small aria-live="polite"><Clock :size="12" /> {{ formatElapsed(elapsed) }} · {{ journal.uploading ? '照片上传中…' : journal.saving ? '保存中…' : '自动保存' }}</small>
         </div>
         <div class="kj-cook-switch" v-if="!finishing">
           <button type="button" :class="['kj-mode-btn', { 'is-active': viewMode === 'card' }]" @click="viewMode = 'card'"><Layers :size="14" /> 卡片</button>
@@ -285,6 +425,23 @@ function dismissDone() {
           {{ d.snapshot.name }}
         </button>
       </div>
+
+      <section v-if="!finishing && activeQuestStage" class="kj-quest-banner" aria-label="本关目标">
+        <div class="kj-spread">
+          <span class="kj-tag">{{ activeQuestStage.emoji }} {{ activeQuestStage.chapter_title }} · {{ activeQuestStage.name }}</span>
+          <span class="kj-stage-stars">
+            <Star v-for="(on, i) in starPips(activeGoals.filter(g => g.done).length)" :key="i" :size="14" :class="{ 'is-on': on }" />
+          </span>
+        </div>
+        <p class="kj-cheer">{{ cheer }}</p>
+        <ul class="kj-goal-list">
+          <li v-for="goal in activeGoals" :key="goal.id" :class="{ 'is-done': goal.done }">
+            <Check v-if="goal.done" :size="14" /><span v-else class="kj-goal-dot"></span>
+            <span><b>{{ goal.title }}</b><small>{{ goal.detail }}</small></span>
+          </li>
+        </ul>
+        <p class="kj-muted">当前菜心得 {{ noteLength(activeDish) }}/8 字 · 本关最高 {{ activeQuestStage.stars }}★</p>
+      </section>
 
       <!-- Step-by-step Card Mode -->
       <template v-if="!finishing && viewMode === 'card' && activeDish">
@@ -390,6 +547,11 @@ function dismissDone() {
 
         <article v-for="dish in draft.dishes" :key="dish.id" class="kj-card">
           <h2>{{ dish.snapshot.name }}</h2>
+          <div class="kj-finish-goals">
+            <span v-for="goal in stageGoals(dish)" :key="goal.id" :class="{ 'is-done': goal.done }">
+              <Star :size="13" /> {{ goal.title }}
+            </span>
+          </div>
 
           <!-- Prominent Final Photo Upload Box -->
           <label class="kj-photo-drop">
@@ -421,6 +583,7 @@ function dismissDone() {
           <label>留给下次的自己（可选）
             <textarea maxlength="1000" :value="dish.note" placeholder="火候、咸淡或一点小发现…" @input="dishPatch(dish, { note: $event.target.value })" />
           </label>
+          <small class="kj-note-count">{{ noteLength(dish) }}/8 字解锁「留下色香味」</small>
         </article>
 
         <article class="kj-card kj-finish-foot">
@@ -436,6 +599,58 @@ function dismissDone() {
         </article>
       </div>
     </fieldset>
+
+    <!-- Stage briefing: story, goals, secret and the final go -->
+    <div v-if="briefing" class="kj-modal" @click.self="briefing = null">
+      <article class="kj-card kj-briefing" role="dialog" aria-modal="true" aria-labelledby="kj-brief-title">
+        <button type="button" class="kj-icon-btn kj-modal-close" aria-label="关闭" @click="briefing = null"><X :size="18" /></button>
+        <span class="kj-tag">{{ briefing.emoji }} 第 {{ briefing.chapter_number }} 章 · {{ briefing.chapter_title }}</span>
+        <h2 id="kj-brief-title">{{ briefing.name }}</h2>
+        <p class="kj-brief-story">{{ briefing.story || briefing.tip }}</p>
+        <div class="kj-brief-facts">
+          <span><Clock :size="14" /> 约 {{ briefing.minutes }} 分钟</span>
+          <span><Star :size="14" /> 难度 {{ '★'.repeat(briefing.difficulty || 1) }}</span>
+          <span><Trophy :size="14" /> 最高 {{ briefing.stars || 0 }}/3 星</span>
+        </div>
+        <h3>本关目标</h3>
+        <ul class="kj-goal-list">
+          <li v-for="rule in QUEST_STAR_RULES" :key="rule.id">
+            <span class="kj-goal-dot"></span>
+            <span><b>{{ rule.title }}</b><small>{{ rule.detail }}</small></span>
+          </li>
+        </ul>
+        <p v-if="briefing.secret_unlocked" class="kj-secret-hint"><BookOpen :size="14" /> 已解锁秘籍：{{ briefing.secret }}</p>
+        <p v-else class="kj-muted">做到 3 星，会解锁这道菜的独门秘籍。</p>
+        <div class="kj-actions">
+          <button type="button" @click="briefing = null">再想想</button>
+          <button type="button" class="kj-primary" :disabled="journal.finalizing" @click="startBriefing"><Flame :size="15" /> 开火，开始闯关</button>
+        </div>
+      </article>
+    </div>
+
+    <!-- Rank rules -->
+    <div v-if="showRules" class="kj-modal" @click.self="showRules = false">
+      <article class="kj-card kj-rules" role="dialog" aria-modal="true" aria-labelledby="kj-rules-title">
+        <button type="button" class="kj-icon-btn kj-modal-close" aria-label="关闭" @click="showRules = false"><X :size="18" /></button>
+        <span class="kj-tag"><Award :size="14" /> 段位赛</span>
+        <h2 id="kj-rules-title">像打排位一样，慢慢变强</h2>
+        <p class="kj-muted">{{ RANK_RULE }}</p>
+        <div class="kj-tier-list">
+          <div v-for="tier in rankTiers(rank)" :key="tier.id" :class="['kj-tier', { 'is-current': rank?.tier === tier.id }]">
+            <b>{{ tier.title }}</b>
+            <small>{{ tier.min }} 分起</small>
+          </div>
+        </div>
+        <h3>星星怎么拿</h3>
+        <ul class="kj-goal-list">
+          <li v-for="rule in QUEST_STAR_RULES" :key="rule.id">
+            <span class="kj-goal-dot"></span>
+            <span><b>{{ rule.title }}</b><small>{{ rule.detail }}</small></span>
+          </li>
+        </ul>
+        <p class="kj-muted">每章 3 关，每关 3 星。得到 3 星会解锁秘籍；章内拿满 3 星，下一章才会亮起。</p>
+      </article>
+    </div>
 
     <CookingRecordDetail :journal="journal" :record="detail" @close="detail = null" @cook="detail = null" />
   </section>

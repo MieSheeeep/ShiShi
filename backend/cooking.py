@@ -8,7 +8,7 @@ from uuid import uuid4
 from fastapi import Depends, HTTPException, Path, Query
 from sqlalchemy import text
 
-from backend import cooking_schema as schema, cooking_store as store, media
+from backend import cooking_schema as schema, cooking_store as store, media, quests
 
 SessionId = Annotated[int, Path(ge=1, le=2**63 - 1)]
 
@@ -19,9 +19,12 @@ def record_upload(engine, user_id, url):
                    {'user': user_id, 'url': url})
 
 
-def new_dish(recipe_id, snapshot, key):
-    return {'id': str(uuid4()), 'dish_key': key, 'recipe_id': recipe_id,
+def new_dish(recipe_id, snapshot, key, quest_stage=None):
+    dish = {'id': str(uuid4()), 'dish_key': key, 'recipe_id': recipe_id,
             'snapshot': snapshot, 'outcome': 'pending', 'note': '', 'photos': [], 'completed_steps': []}
+    if quest_stage:
+        dish['quest_stage'] = quest_stage
+    return dish
 
 
 def check_version(session, version):
@@ -41,6 +44,12 @@ def install(app, engine, current_user):
             if previous:
                 return json.loads(previous.body)
             dishes = []
+            if body.quest_stage:
+                try:
+                    snapshot = quests.quest_snapshot(body.quest_stage)
+                except KeyError:
+                    raise HTTPException(404, '内置关卡不存在')
+                dishes.append(new_dish(None, snapshot, f'quest:{body.quest_stage}', body.quest_stage))
             for rid in body.recipe_ids:
                 row = db.execute(text('SELECT body FROM recipes WHERE id=:id AND user_id=:user'),
                                  {'id': rid, 'user': user['id']}).first()
